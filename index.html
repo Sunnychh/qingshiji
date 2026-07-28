@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#29493a">
+  <title>轻食记｜简单记录，吃得刚刚好</title>
+  <meta name="description" content="记录每日饮食与营养比例，根据目标获得下一餐建议。">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top"><span>轻</span><strong>轻食记</strong></a>
+    <div class="date-pill"><i></i><span id="today-label"></span></div>
+    <button class="avatar" id="profile-open" aria-label="编辑个人目标">S</button>
+  </header>
+
+  <main class="content" id="top">
+    <section class="tab-page active" id="page-today">
+      <div class="hero-copy">
+        <div><p class="eyebrow">DAILY BALANCE</p><h1>今天，吃得刚刚好。</h1><p>记录不必精确到每一克，持续比完美更重要。</p></div>
+        <button class="primary desktop-add" data-add>＋ 记录一餐</button>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="card energy-card">
+          <div class="card-title"><div><span class="label">今日摄入</span><h2><span id="total-calories">0</span> <small>kcal</small></h2></div><span class="status">目标内</span></div>
+          <div class="energy-layout">
+            <div class="cal-ring" id="cal-ring"><div><b id="calories-left">1400</b><small>kcal 可用</small></div></div>
+            <div class="metrics" id="metrics"></div>
+          </div>
+          <p class="micro-note" id="profile-summary"></p>
+        </section>
+
+        <section class="card advice-card">
+          <div class="spark">✦</div><span class="label">智能建议 · 此刻</span>
+          <h2 id="advice-title">先记录今天的第一餐</h2>
+          <p id="advice-body">记录后会按你的目标给出下一餐建议。</p>
+          <div class="tags" id="advice-tags"></div>
+          <button class="text-button" data-go="library">看看合适的搭配 <span>→</span></button>
+        </section>
+      </div>
+
+      <section class="section-block">
+        <div class="section-head"><div><span class="label">TODAY'S MEALS</span><h2>今天吃了什么</h2></div><button class="secondary" data-add>＋ 添加</button></div>
+        <div id="meal-list"></div>
+      </section>
+    </section>
+
+    <section class="tab-page" id="page-library">
+      <div class="hero-copy"><div><p class="eyebrow">MY COMBINATIONS</p><h1>常吃的搭配，一点就记。</h1><p>把之前对话里的套餐整理成了快捷模板。</p></div></div>
+      <div class="template-grid" id="template-grid"></div>
+    </section>
+
+    <section class="tab-page" id="page-trends">
+      <div class="hero-copy"><div><p class="eyebrow">WEEKLY RHYTHM</p><h1>看趋势，不审判某一天。</h1><p>一周的平均状态，比单日数字更有意义。</p></div></div>
+      <section class="card trend-card">
+        <div class="section-head"><div><span class="label">近 7 天</span><h2>热量节奏</h2></div><strong><span id="daily-average">0</span><small> kcal 日均</small></strong></div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </section>
+      <div class="insight"><span>✦</span><div><b>给自己一点时间</b><p>连续记录 7 天后，这里会更准确地识别你的蛋白质缺口、周末波动和适合长期坚持的搭配。</p></div></div>
+    </section>
+  </main>
+
+  <button class="mobile-fab" data-add aria-label="记录一餐">＋</button>
+  <nav class="bottom-nav" aria-label="主导航">
+    <button class="active" data-tab="today"><span>⌂</span>今天</button>
+    <button data-tab="library"><span>▦</span>套餐库</button>
+    <button data-tab="trends"><span>↗</span>趋势</button>
+    <button id="profile-nav"><span>○</span>我的</button>
+  </nav>
+
+  <div class="modal-backdrop" id="meal-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="meal-modal-title">
+      <div class="modal-head"><div><span class="label">QUICK LOG</span><h2 id="meal-modal-title">记录这一餐</h2></div><button data-close aria-label="关闭">×</button></div>
+      <form id="meal-form">
+        <label>餐次<select name="mealType"><option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option></select></label>
+        <label class="wide">搭配名称<input name="name" required autocomplete="off" placeholder="例如：鸡胸肉沙拉 + 半碗饭"></label>
+        <label>热量 kcal<input name="calories" type="number" min="0" inputmode="decimal"></label>
+        <label>蛋白质 g<input name="protein" type="number" min="0" step="0.1" inputmode="decimal"></label>
+        <label>脂肪 g<input name="fat" type="number" min="0" step="0.1" inputmode="decimal"></label>
+        <label>碳水 g<input name="carbs" type="number" min="0" step="0.1" inputmode="decimal"></label>
+        <label class="wide">备注（可选）<input name="note" autocomplete="off" placeholder="分量、饱腹感等"></label>
+        <button class="primary submit" type="submit">记到今天</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="profile-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+      <div class="modal-head"><div><span class="label">MY GOAL</span><h2 id="profile-modal-title">调整我的目标</h2></div><button data-close aria-label="关闭">×</button></div>
+      <form id="profile-form">
+        <label>身高 cm<input name="height" type="number"></label>
+        <label>体重 kg<input name="weight" type="number" step="0.1"></label>
+        <label>每日热量 kcal<input name="calorieTarget" type="number"></label>
+        <label>蛋白质 g<input name="proteinTarget" type="number"></label>
+        <label>脂肪 g<input name="fatTarget" type="number"></label>
+        <label>碳水 g<input name="carbsTarget" type="number"></label>
+        <button class="primary submit" type="submit">保存目标</button>
+        <button class="secondary backup" type="button" id="export-data">导出记录备份</button>
+        <p class="disclaimer">数据只保存在当前浏览器。清除浏览器数据前请先导出备份。本工具不替代医生或注册营养师的医疗建议。</p>
+      </form>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
