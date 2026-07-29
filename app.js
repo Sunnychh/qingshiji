@@ -207,7 +207,10 @@
       return;
     }
     container.innerHTML = dates.map(function (date) {
-      var list = grouped[date];
+      var mealOrder = { "早餐": 0, "午餐": 1, "加餐": 2, "晚餐": 3 };
+      var list = grouped[date].slice().sort(function (a, b) {
+        return (mealOrder[a.mealType] || 0) - (mealOrder[b.mealType] || 0);
+      });
       var calories = sum(list, "calories");
       var protein = sum(list, "protein");
       var fat = sum(list, "fat");
