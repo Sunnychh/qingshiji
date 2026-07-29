@@ -17,10 +17,15 @@
     goal: "减脂",
   };
   var templates = [
-    { mealType: "午餐", name: "619 kcal 营养套餐", calories: 619, protein: 41.79, fat: 21.22, carbs: 78.09, note: "高蛋白午餐" },
-    { mealType: "晚餐", name: "414 kcal 轻食套餐", calories: 414, protein: 19.39, fat: 4.87, carbs: 76.98, note: "低脂、主食充足" },
+    { mealType: "午餐", name: "绿皮叔照烧鸡肉健康碗", calories: 549, protein: 39.49, fat: 7.42, carbs: 81.89, note: "高蛋白主力午餐" },
+    { mealType: "晚餐", name: "绿皮叔炙烤大虾健康碗", calories: 414, protein: 19.39, fat: 4.87, carbs: 76.98, note: "完整套餐，包含主食" },
+    { mealType: "午餐", name: "619 kcal 营养套餐", calories: 619, protein: 41.79, fat: 21.22, carbs: 78.09, note: "历史记录中的高蛋白套餐" },
+    { mealType: "早餐", name: "鸡蛋肉堡（少面皮）", calories: 300, protein: 18, fat: 12.5, carbs: 22.5, note: "保留内馅和少量脆皮，数值为估算中值" },
+    { mealType: "加餐", name: "青海高原鲜牛奶 230ml", calories: 158, protein: 8.05, fat: 8.74, carbs: 11.73, note: "按包装营养表换算" },
     { mealType: "加餐", name: "鸡蛋 1 个", calories: 70, protein: 6, fat: 5, carbs: 0.5, note: "简单补充蛋白质" },
     { mealType: "加餐", name: "番茄洋葱土豆汤", calories: 30, protein: 1, fat: 0, carbs: 6, note: "约 220g，以汤为主" },
+    { mealType: "加餐", name: "香蕉牛奶小面包（去夹心）", calories: 170, protein: 4, fat: 6, carbs: 28, note: "约 57g，去夹心后估算" },
+    { mealType: "加餐", name: "红豆千层面包", calories: 239, protein: 4, fat: 4.3, carbs: 42, note: "约 67g，按包装营养表换算" },
   ];
 
   function load(key, fallback) {
