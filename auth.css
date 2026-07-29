@@ -63,6 +63,10 @@
   grid-column: auto !important;
 }
 
+.auth-register {
+  width: 100%;
+}
+
 .auth-status {
   min-height: 18px;
   margin: 16px 0 0;
