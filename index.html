@@ -30,9 +30,9 @@
 
       <div class="dashboard-grid">
         <section class="card energy-card">
-          <div class="card-title"><div><span class="label">今日摄入</span><h2><span id="total-calories">0</span> <small>kcal</small></h2></div><span class="status">目标内</span></div>
+          <div class="card-title"><div><span class="label">今日摄入</span><h2><span id="total-calories">0</span> <small>kcal</small></h2></div><span class="status" id="profile-status">待设置</span></div>
           <div class="energy-layout">
-            <div class="cal-ring" id="cal-ring"><div><b id="calories-left">1400</b><small>kcal 可用</small></div></div>
+            <div class="cal-ring" id="cal-ring"><div><b id="calories-left">—</b><small>kcal 可用</small></div></div>
             <div class="metrics" id="metrics"></div>
           </div>
           <p class="micro-note" id="profile-summary"></p>
@@ -98,15 +98,16 @@
 
   <div class="modal-backdrop" id="profile-modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
-      <div class="modal-head"><div><span class="label">MY GOAL</span><h2 id="profile-modal-title">调整我的目标</h2></div><button data-close aria-label="关闭">×</button></div>
+      <div class="modal-head"><div><span class="label">MY GOAL</span><h2 id="profile-modal-title">填写我的目标</h2></div><button data-close aria-label="关闭">×</button></div>
       <form id="profile-form">
-        <label>身高 cm<input name="height" type="number"></label>
-        <label>体重 kg<input name="weight" type="number" step="0.1"></label>
-        <label>每日热量 kcal<input name="calorieTarget" type="number"></label>
-        <label>蛋白质 g<input name="proteinTarget" type="number"></label>
-        <label>脂肪 g<input name="fatTarget" type="number"></label>
-        <label>碳水 g<input name="carbsTarget" type="number"></label>
-        <button class="primary submit" type="submit">保存目标</button>
+        <label>身高 cm<input name="height" type="number" min="1" step="0.1" required placeholder="请填写"></label>
+        <label>体重 kg<input name="weight" type="number" min="1" step="0.1" required placeholder="请填写"></label>
+        <label>每日热量 kcal<input name="calorieTarget" type="number" min="1" required placeholder="请填写"></label>
+        <label>蛋白质 g<input name="proteinTarget" type="number" min="1" step="0.1" required placeholder="请填写"></label>
+        <label>脂肪 g<input name="fatTarget" type="number" min="1" step="0.1" required placeholder="请填写"></label>
+        <label>碳水 g<input name="carbsTarget" type="number" min="1" step="0.1" required placeholder="请填写"></label>
+        <label class="wide">当前目标<select name="goal" required><option value="">请选择</option><option>减脂</option><option>维持体重</option><option>增肌</option></select></label>
+        <button class="primary submit" type="submit">保存并开始</button>
         <button class="secondary backup" type="button" id="export-data">导出记录备份</button>
         <p class="disclaimer" id="storage-note">未登录时记录保存在当前浏览器；登录后会安全同步到云端。本工具不替代医生或注册营养师的医疗建议。</p>
       </form>
@@ -143,6 +144,6 @@
   </div>
   <div class="toast" id="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
