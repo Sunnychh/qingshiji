@@ -1,0 +1,137 @@
+.plan-modal {
+  width: min(680px, 100%);
+}
+
+.plan-lead {
+  margin: -8px 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.plan-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #e8eee7;
+  margin-bottom: 8px;
+}
+
+.plan-summary span {
+  font-size: 12px;
+  color: #5e7066;
+}
+
+.plan-summary b {
+  color: var(--green-dark);
+}
+
+.plan-list {
+  display: grid;
+}
+
+.plan-item {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  padding: 18px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.plan-number {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green-dark);
+  color: #fff;
+  font: 500 15px Georgia, serif;
+}
+
+.plan-content > span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--orange);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.plan-content h3 {
+  margin: 0 0 7px;
+  font: 500 19px Georgia, "Songti SC", serif;
+}
+
+.plan-content p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.plan-macros {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+
+.plan-macros b,
+.plan-macros span {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #eeeee6;
+  font-size: 10px;
+}
+
+.plan-macros b {
+  background: #f3dfd5;
+  color: #9c4a34;
+}
+
+.plan-note {
+  margin: 17px 0 0;
+  color: #7c8881;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.plan-library {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.plan-empty {
+  padding: 26px 18px;
+  border: 1px dashed #cdd1c6;
+  border-radius: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .plan-modal {
+    max-height: 92vh;
+  }
+
+  .plan-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plan-summary span:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .plan-item {
+    padding: 16px 0;
+  }
+
+  .plan-content h3 {
+    font-size: 18px;
+  }
+}
