@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="app.css?v=6">
   <link rel="stylesheet" href="auth.css?v=3">
   <link rel="stylesheet" href="history.css?v=1">
+  <link rel="stylesheet" href="advice.css?v=1">
 </head>
 <body>
   <header class="topbar">
@@ -42,7 +43,7 @@
           <h2 id="advice-title">先记录今天的第一餐</h2>
           <p id="advice-body">记录后会按你的目标给出下一餐建议。</p>
           <div class="tags" id="advice-tags"></div>
-          <button class="text-button" data-go="library">看看合适的搭配 <span>→</span></button>
+          <button class="text-button" id="advice-plan-open">看看合适的搭配 <span>→</span></button>
         </section>
       </div>
 
@@ -111,6 +112,16 @@
       </form>
     </div>
   </div>
+  <div class="modal-backdrop" id="plan-modal" hidden>
+    <div class="modal plan-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+      <div class="modal-head"><div><span class="label">REST OF TODAY</span><h2 id="plan-modal-title">今天余下怎么吃</h2></div><button data-close aria-label="关闭">×</button></div>
+      <p class="plan-lead" id="plan-lead"></p>
+      <div class="plan-summary" id="plan-summary"></div>
+      <div class="plan-list" id="plan-list"></div>
+      <p class="plan-note" id="plan-note"></p>
+      <button class="secondary plan-library" type="button" data-go="library">仍然查看全部套餐</button>
+    </div>
+  </div>
   <div class="modal-backdrop" id="auth-modal" hidden>
     <div class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
       <div class="modal-head"><div><span class="label">CLOUD SYNC</span><h2 id="auth-modal-title">登录后跨设备同步</h2></div><button data-close aria-label="关闭">×</button></div>
@@ -132,6 +143,6 @@
   </div>
   <div class="toast" id="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
