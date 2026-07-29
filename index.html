@@ -7,11 +7,15 @@
   <title>轻食记｜简单记录，吃得刚刚好</title>
   <meta name="description" content="记录每日饮食与营养比例，根据目标获得下一餐建议。">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="auth.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#top"><span>轻</span><strong>轻食记</strong></a>
-    <div class="date-pill"><i></i><span id="today-label"></span></div>
+    <div class="topbar-actions">
+      <div class="date-pill"><i></i><span id="today-label"></span></div>
+      <button class="sync-pill" id="auth-open"><i></i><span id="sync-label">本机保存 · 登录同步</span></button>
+    </div>
     <button class="avatar" id="profile-open" aria-label="编辑个人目标">S</button>
   </header>
 
@@ -98,11 +102,29 @@
         <label>碳水 g<input name="carbsTarget" type="number"></label>
         <button class="primary submit" type="submit">保存目标</button>
         <button class="secondary backup" type="button" id="export-data">导出记录备份</button>
-        <p class="disclaimer">数据只保存在当前浏览器。清除浏览器数据前请先导出备份。本工具不替代医生或注册营养师的医疗建议。</p>
+        <p class="disclaimer" id="storage-note">未登录时记录保存在当前浏览器；登录后会安全同步到云端。本工具不替代医生或注册营养师的医疗建议。</p>
       </form>
     </div>
   </div>
+  <div class="modal-backdrop" id="auth-modal" hidden>
+    <div class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <div class="modal-head"><div><span class="label">CLOUD SYNC</span><h2 id="auth-modal-title">登录后跨设备同步</h2></div><button data-close aria-label="关闭">×</button></div>
+      <div id="auth-signed-out">
+        <p class="auth-copy">输入邮箱，我们会发送一封安全登录邮件。首次登录时，当前浏览器里的记录会自动迁移到云端。</p>
+        <form id="auth-form" class="auth-form">
+          <label>邮箱地址<input name="email" type="email" required autocomplete="email" placeholder="name@example.com"></label>
+          <button class="primary submit" type="submit">发送登录邮件</button>
+        </form>
+      </div>
+      <div id="auth-signed-in" hidden>
+        <div class="signed-in-card"><span>已安全同步</span><strong id="account-email"></strong><p>你的饮食记录和个人目标已保存到 Supabase，在其他设备上用同一邮箱登录即可查看。</p></div>
+        <button class="secondary auth-signout" type="button" id="sign-out">退出登录</button>
+      </div>
+      <p class="auth-status" id="auth-status"></p>
+    </div>
+  </div>
   <div class="toast" id="toast" hidden></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>

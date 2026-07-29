@@ -1,0 +1,113 @@
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sync-pill {
+  padding: 9px 14px;
+  border: 1px solid #ccd2c8;
+  border-radius: 99px;
+  background: #fffdf7;
+  color: #4f6358;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sync-pill i {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  vertical-align: 2px;
+}
+
+.sync-pill.synced {
+  border-color: #c2d2c1;
+  background: #e1ebdf;
+}
+
+.sync-pill.synced i {
+  background: #4d765c;
+}
+
+.sync-pill.syncing i {
+  background: #e3a837;
+  box-shadow: 0 0 0 3px #e3a83722;
+}
+
+.sync-pill.error i {
+  background: #d65c43;
+}
+
+.auth-modal {
+  width: min(500px, 100%);
+}
+
+.auth-copy {
+  margin: -4px 0 22px;
+  color: #6f7d75;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.auth-form {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+}
+
+.auth-form label,
+.auth-form .submit {
+  grid-column: auto !important;
+}
+
+.auth-status {
+  min-height: 18px;
+  margin: 16px 0 0;
+  text-align: center;
+  color: #67776e;
+  font-size: 12px;
+}
+
+.signed-in-card {
+  display: grid;
+  gap: 7px;
+  padding: 20px;
+  border: 1px solid #d8ddd2;
+  border-radius: 14px;
+  background: #eef1e9;
+}
+
+.signed-in-card span {
+  color: #63806d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.signed-in-card strong {
+  font-size: 17px;
+}
+
+.signed-in-card p {
+  margin: 2px 0 0;
+  color: #6b7971;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.auth-signout {
+  width: 100%;
+  margin-top: 14px;
+}
+
+@media (max-width: 760px) {
+  .sync-pill {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
