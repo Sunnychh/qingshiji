@@ -8,14 +8,14 @@
   var SUPABASE_KEY = "sb_publishable_GyMTYjsSYxi1P2_itA3ulw_NKKr_3IV";
   var today = new Date().toLocaleDateString("sv-SE");
   var selectedHistoryDate = today;
-  var defaultProfile = {
-    height: 168,
-    weight: 62.5,
-    calorieTarget: 1400,
-    proteinTarget: 80,
-    fatTarget: 40,
-    carbsTarget: 150,
-    goal: "减脂",
+  var emptyProfile = {
+    height: null,
+    weight: null,
+    calorieTarget: null,
+    proteinTarget: null,
+    fatTarget: null,
+    carbsTarget: null,
+    goal: "",
   };
   var templates = [
     { mealType: "午餐", name: "绿皮叔照烧鸡肉健康碗", calories: 549, protein: 39.49, fat: 7.42, carbs: 81.89, note: "高蛋白主力午餐" },
@@ -51,9 +51,10 @@
   var hadLocalMeals = localStorage.getItem(STORAGE) !== null;
   var hadLocalProfile = localStorage.getItem(PROFILE) !== null;
   var meals = load(STORAGE, []).map(ensureMealIdentity);
-  var profile = Object.assign({}, defaultProfile, load(PROFILE, defaultProfile));
+  var profile = Object.assign({}, emptyProfile, load(PROFILE, emptyProfile));
   var currentUser = null;
   var loadedUserId = null;
+  var profilePrompted = false;
   var dbClient = window.supabase
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" },
@@ -73,6 +74,12 @@
     return list.reduce(function (total, item) {
       return total + (Number(item[key]) || 0);
     }, 0);
+  }
+
+  function profileReady() {
+    return ["height", "weight", "calorieTarget", "proteinTarget", "fatTarget", "carbsTarget"].every(function (key) {
+      return Number(profile[key]) > 0;
+    }) && Boolean(profile.goal);
   }
 
   function escapeHtml(value) {
@@ -127,7 +134,14 @@
     return '<div class="metric"><div class="metric-head"><span>' + label + "</span><b>" + n(value) + "<small>/" + target + unit + '</small></b></div><div class="track"><span style="width:' + pct + "%;background:" + color + '"></span></div></div>';
   }
 
+  function emptyMetric(label) {
+    return '<div class="metric"><div class="metric-head"><span>' + label + '</span><b>待设置</b></div><div class="track"><span style="width:0%"></span></div></div>';
+  }
+
   function advice(totals) {
+    if (!profileReady()) {
+      return { title: "先填写你的个人目标", body: "身高、体重和营养目标不会由系统替你预设。填写完成后，才会开始计算今日额度和下一餐建议。", tags: ["由你填写", "每个账号独立保存"] };
+    }
     var calLeft = Math.max(0, profile.calorieTarget - totals.calories);
     var proteinLeft = Math.max(0, profile.proteinTarget - totals.protein);
     if (!totals.list.length) {
@@ -191,6 +205,7 @@
   }
 
   function renderRemainingPlan() {
+    if (!profileReady()) return fillProfile();
     var totals = totalsFor(today);
     var calLeft = Math.max(0, profile.calorieTarget - totals.calories);
     var proteinLeft = Math.max(0, profile.proteinTarget - totals.protein);
@@ -220,13 +235,17 @@
 
   function renderToday() {
     var totals = totalsFor(today);
-    var left = Math.max(0, profile.calorieTarget - totals.calories);
-    var pct = Math.min(100, (totals.calories / profile.calorieTarget) * 100) || 0;
+    var ready = profileReady();
+    var left = ready ? Math.max(0, profile.calorieTarget - totals.calories) : null;
+    var pct = ready ? Math.min(100, (totals.calories / profile.calorieTarget) * 100) || 0 : 0;
     document.getElementById("total-calories").textContent = n(totals.calories);
-    document.getElementById("calories-left").textContent = n(left);
+    document.getElementById("calories-left").textContent = ready ? n(left) : "—";
+    document.getElementById("profile-status").textContent = ready ? "目标内" : "待设置";
     document.getElementById("cal-ring").style.setProperty("--progress", pct + "%");
-    document.getElementById("metrics").innerHTML = metric("蛋白质", totals.protein, profile.proteinTarget, "g", "#ff6b45") + metric("脂肪", totals.fat, profile.fatTarget, "g", "#f3b43f") + metric("碳水", totals.carbs, profile.carbsTarget, "g", "#557d67");
-    document.getElementById("profile-summary").textContent = "目标按 " + profile.height + " cm · " + profile.weight + " kg · " + profile.goal + " 设置，可在头像中调整";
+    document.getElementById("metrics").innerHTML = ready
+      ? metric("蛋白质", totals.protein, profile.proteinTarget, "g", "#ff6b45") + metric("脂肪", totals.fat, profile.fatTarget, "g", "#f3b43f") + metric("碳水", totals.carbs, profile.carbsTarget, "g", "#557d67")
+      : emptyMetric("蛋白质") + emptyMetric("脂肪") + emptyMetric("碳水");
+    document.getElementById("profile-summary").textContent = ready ? "目标按 " + profile.height + " cm · " + profile.weight + " kg · " + profile.goal + " 设置，可在头像中调整" : "尚未填写个人资料，系统不会使用内置身高、体重或营养目标。";
     var nextAdvice = advice(totals);
     document.getElementById("advice-title").textContent = nextAdvice.title;
     document.getElementById("advice-body").textContent = nextAdvice.body;
@@ -260,7 +279,8 @@
     document.getElementById("daily-average").textContent = active.length ? Math.round(sum(active, "cal") / active.length) : 0;
     document.getElementById("bar-chart").innerHTML = days.map(function (day) {
       var selected = day.key === selectedHistoryDate;
-      return '<button type="button" class="bar-col' + (selected ? " selected" : "") + '" data-history-date="' + day.key + '" aria-pressed="' + selected + '" aria-label="查看 ' + day.key + ' 的饮食记录"><span class="bar-value">' + (day.cal || "—") + '</span><span class="bar-well"><i style="height:' + Math.min(100, (day.cal / profile.calorieTarget) * 100) + '%"></i></span><small>' + day.label + "</small></button>";
+      var chartTarget = profileReady() ? profile.calorieTarget : Math.max(day.cal, 1);
+      return '<button type="button" class="bar-col' + (selected ? " selected" : "") + '" data-history-date="' + day.key + '" aria-pressed="' + selected + '" aria-label="查看 ' + day.key + ' 的饮食记录"><span class="bar-value">' + (day.cal || "—") + '</span><span class="bar-well"><i style="height:' + Math.min(100, (day.cal / chartTarget) * 100) + '%"></i></span><small>' + day.label + "</small></button>";
     }).join("");
   }
 
@@ -306,8 +326,9 @@
 
   function fillProfile() {
     var form = document.getElementById("profile-form");
-    Object.keys(defaultProfile).forEach(function (key) {
-      if (form.elements[key]) form.elements[key].value = profile[key];
+    form.reset();
+    Object.keys(emptyProfile).forEach(function (key) {
+      if (form.elements[key] && profile[key] !== null && profile[key] !== "") form.elements[key].value = profile[key];
     });
     openModal("profile-modal");
   }
@@ -358,7 +379,7 @@
       protein_target: n(profile.proteinTarget),
       fat_target: n(profile.fatTarget),
       carbs_target: n(profile.carbsTarget),
-      goal: profile.goal || "减脂",
+      goal: profile.goal,
       updated_at: new Date().toISOString(),
     };
   }
@@ -371,7 +392,7 @@
       proteinTarget: Number(row.protein_target),
       fatTarget: Number(row.fat_target),
       carbsTarget: Number(row.carbs_target),
-      goal: row.goal || "减脂",
+      goal: row.goal || "",
     };
   }
 
@@ -392,7 +413,7 @@
     setSyncState("syncing", "正在同步…");
     try {
       if (!localStorage.getItem(migrationKey)) {
-        if (hadLocalProfile) {
+        if (hadLocalProfile && profileReady()) {
           var profileMigration = await dbClient.from("profiles").upsert(profileToRow(userId), { onConflict: "user_id" });
           if (profileMigration.error) throw profileMigration.error;
         }
@@ -404,19 +425,15 @@
       }
       var profileResult = await dbClient.from("profiles").select("*").eq("user_id", userId).maybeSingle();
       if (profileResult.error) throw profileResult.error;
-      if (!profileResult.data) {
-        var newProfileResult = await dbClient.from("profiles").upsert(profileToRow(userId), { onConflict: "user_id" }).select("*").single();
-        if (newProfileResult.error) throw newProfileResult.error;
-        profileResult.data = newProfileResult.data;
-      }
       var mealsResult = await dbClient.from("meals").select("*").eq("user_id", userId).order("eaten_on", { ascending: true }).order("created_at", { ascending: true });
       if (mealsResult.error) throw mealsResult.error;
-      profile = rowToProfile(profileResult.data);
+      profile = profileResult.data ? rowToProfile(profileResult.data) : Object.assign({}, emptyProfile);
       meals = (mealsResult.data || []).map(rowToMeal);
       saveLocal();
       render();
       setSyncState("synced", currentUser.email || "已同步");
       document.getElementById("auth-status").textContent = "同步完成";
+      promptProfileIfNeeded();
     } catch (error) {
       console.error(error);
       setSyncState("error", "同步遇到问题");
@@ -481,6 +498,13 @@
       loadedUserId = currentUser.id;
       await loadRemoteState();
     }
+    promptProfileIfNeeded();
+  }
+
+  function promptProfileIfNeeded() {
+    if (profileReady() || profilePrompted) return;
+    profilePrompted = true;
+    setTimeout(fillProfile, 0);
   }
 
   document.getElementById("today-label").textContent = "今天 · " + new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
@@ -532,6 +556,7 @@
   document.getElementById("profile-open").addEventListener("click", fillProfile);
   document.getElementById("profile-nav").addEventListener("click", fillProfile);
   document.getElementById("advice-plan-open").addEventListener("click", function () {
+    if (!profileReady()) return fillProfile();
     renderRemainingPlan();
     openModal("plan-modal");
   });
@@ -564,8 +589,9 @@
     event.preventDefault();
     var data = new FormData(event.target);
     ["height", "weight", "calorieTarget", "proteinTarget", "fatTarget", "carbsTarget"].forEach(function (key) {
-      profile[key] = Number(data.get(key)) || defaultProfile[key];
+      profile[key] = Number(data.get(key));
     });
+    profile.goal = data.get("goal");
     persistProfile();
     closeModals();
     showToast("目标已保存");
@@ -634,7 +660,8 @@
     currentUser = null;
     loadedUserId = null;
     meals = [];
-    profile = Object.assign({}, defaultProfile);
+    profile = Object.assign({}, emptyProfile);
+    profilePrompted = false;
     localStorage.removeItem(STORAGE);
     localStorage.removeItem(PROFILE);
     render();
@@ -666,5 +693,5 @@
     dbClient.auth.onAuthStateChange(function (event, session) {
       setTimeout(function () { handleSession(session); }, 0);
     });
-  }
+  } else promptProfileIfNeeded();
 })();
