@@ -142,6 +142,75 @@
     return { title: "可以正常吃一份均衡餐", body: "还可吃约 " + n(calLeft) + " kcal，蛋白质缺口不大。414 kcal 套餐" + (proteinLeft > 8 ? "加 1 个鸡蛋" : "单独吃") + "会比较合适。", tags: ["不用去主食", "控制额外油脂"] };
   }
 
+  var planMeals = {
+    breakfast: { name: "高蛋白酸奶 200g + 燕麦 30g + 半根香蕉", calories: 330, protein: 25, fat: 6, carbs: 45, reason: "把早餐的蛋白质和主食一起补上，饱腹感更稳。" },
+    chicken: { name: "鸡胸肉 150g + 时蔬 300g + 米饭 150g", calories: 560, protein: 48, fat: 12, carbs: 60, reason: "蛋白质充足，保留正常主食，不需要只吃菜。" },
+    shrimp: { name: "大虾 180g + 时蔬 300g + 米饭 150g", calories: 510, protein: 43, fat: 8, carbs: 62, reason: "脂肪较低，适合今天仍有明显蛋白质缺口时。" },
+    light: { name: "大虾 180g + 番茄蔬菜汤 + 半碗饭", calories: 380, protein: 38, fat: 5, carbs: 43, reason: "热量空间不大时，优先保住蛋白质和蔬菜。" },
+    snack: { name: "无糖高蛋白酸奶 200g + 半根香蕉", calories: 190, protein: 20, fat: 3, carbs: 25, reason: "只在确实饿时吃，用小份加餐补足蛋白质。" },
+    tiny: { name: "无糖高蛋白酸奶 150g", calories: 110, protein: 15, fat: 2, carbs: 8, reason: "临近目标时不必凑满热量，饿了再补这一小份。" },
+  };
+
+  function remainingPlan(totals) {
+    var calLeft = Math.max(0, profile.calorieTarget - totals.calories);
+    var proteinLeft = Math.max(0, profile.proteinTarget - totals.protein);
+    var fatLeft = Math.max(0, profile.fatTarget - totals.fat);
+    var hour = new Date().getHours();
+    var items = [];
+
+    if (calLeft < 120) {
+      return { items: [], message: "今天已经接近热量目标。如果没有明显饥饿感，可以不再安排；饿的话优先少量无糖酸奶或清淡蔬菜。" };
+    }
+
+    if (!totals.list.length && hour < 10 && calLeft >= 1250) {
+      items = [
+        { slot: "下一顿 · 早餐", meal: planMeals.breakfast },
+        { slot: "午餐", meal: planMeals.chicken },
+        { slot: "晚餐", meal: planMeals.shrimp },
+      ];
+    } else if (calLeft >= 700) {
+      var main = proteinLeft > 35 && fatLeft < 18 ? planMeals.shrimp : planMeals.chicken;
+      items = [
+        { slot: hour < 14 ? "下一顿 · 午餐" : "下一顿 · 晚餐", meal: main },
+        { slot: "稍晚 · 饿了再吃", meal: planMeals.snack },
+      ];
+    } else if (calLeft >= 450) {
+      items = [{ slot: hour < 14 ? "下一顿 · 午餐" : "下一顿 · 晚餐", meal: proteinLeft > 28 ? planMeals.light : planMeals.shrimp }];
+    } else if (calLeft >= 180) {
+      items = [{ slot: "下一次进食", meal: calLeft >= 380 && proteinLeft > 28 ? planMeals.light : planMeals.snack }];
+    } else {
+      items = [{ slot: "饿了再吃", meal: planMeals.tiny }];
+    }
+
+    var plannedCalories = sum(items.map(function (item) { return item.meal; }), "calories");
+    while (items.length > 1 && plannedCalories > calLeft + 80) {
+      items.pop();
+      plannedCalories = sum(items.map(function (item) { return item.meal; }), "calories");
+    }
+    return { items: items, message: "这是按今天已记录的摄入和当前时间生成的可执行方案，分量与营养值为估算。" };
+  }
+
+  function renderRemainingPlan() {
+    var totals = totalsFor(today);
+    var calLeft = Math.max(0, profile.calorieTarget - totals.calories);
+    var proteinLeft = Math.max(0, profile.proteinTarget - totals.protein);
+    var plan = remainingPlan(totals);
+    var planned = plan.items.map(function (item) { return item.meal; });
+    var plannedCalories = sum(planned, "calories");
+    var plannedProtein = sum(planned, "protein");
+    document.getElementById("plan-lead").textContent = "今天还可安排约 " + n(calLeft) + " kcal，蛋白质还差约 " + n(proteinLeft) + "g。";
+    document.getElementById("plan-summary").innerHTML = plan.items.length
+      ? '<span>建议安排 <b>' + plan.items.length + '</b> 次</span><span>合计约 <b>' + n(plannedCalories) + ' kcal</b></span><span>蛋白质约 <b>' + n(plannedProtein) + 'g</b></span>'
+      : '<span><b>今天无需再安排固定餐次</b></span>';
+    document.getElementById("plan-list").innerHTML = plan.items.length
+      ? plan.items.map(function (item, index) {
+          return '<article class="plan-item"><div class="plan-number">' + (index + 1) + '</div><div class="plan-content"><span>' + escapeHtml(item.slot) + '</span><h3>' + escapeHtml(item.meal.name) + '</h3><p>' + escapeHtml(item.meal.reason) + '</p><div class="plan-macros"><b>' + item.meal.calories + ' kcal</b><span>P ' + item.meal.protein + 'g</span><span>F ' + item.meal.fat + 'g</span><span>C ' + item.meal.carbs + 'g</span></div></div></article>';
+        }).join("")
+      : '<div class="plan-empty">按真实饥饿感决定即可，不需要为了凑数字继续吃。</div>';
+    var unplanned = Math.max(0, calLeft - plannedCalories);
+    document.getElementById("plan-note").textContent = plan.message + (plan.items.length && unplanned > 100 ? " 计划后仍留有约 " + n(unplanned) + " kcal 弹性，不必刻意吃满。" : "");
+  }
+
   function mealRow(meal, allowDelete) {
     var cls = meal.mealType === "午餐" ? "lunch" : meal.mealType === "晚餐" ? "dinner" : meal.mealType === "加餐" ? "snack" : "";
     var icon = meal.mealType === "早餐" ? "☀" : meal.mealType === "午餐" ? "◐" : meal.mealType === "晚餐" ? "☾" : "•";
@@ -427,7 +496,10 @@
     var add = event.target.closest("[data-add]");
     if (add) return fillMeal();
     var go = event.target.closest("[data-go]");
-    if (go) return setTab(go.dataset.go);
+    if (go) {
+      closeModals();
+      return setTab(go.dataset.go);
+    }
     var tabButton = event.target.closest("[data-tab]");
     if (tabButton) return setTab(tabButton.dataset.tab);
     var templateButton = event.target.closest("[data-template]");
@@ -459,6 +531,10 @@
 
   document.getElementById("profile-open").addEventListener("click", fillProfile);
   document.getElementById("profile-nav").addEventListener("click", fillProfile);
+  document.getElementById("advice-plan-open").addEventListener("click", function () {
+    renderRemainingPlan();
+    openModal("plan-modal");
+  });
   document.getElementById("auth-open").addEventListener("click", function () {
     document.getElementById("auth-status").textContent = "";
     openModal("auth-modal");
