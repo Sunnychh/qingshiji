@@ -1,0 +1,546 @@
+(function () {
+  "use strict";
+
+  var STORAGE = "qingshiji-v1";
+  var PROFILE = "qingshiji-profile-v1";
+  var MIGRATION_PREFIX = "qingshiji-supabase-migrated-";
+  var SUPABASE_URL = "https://rmdkdbhzmvgfdickybel.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_GyMTYjsSYxi1P2_itA3ulw_NKKr_3IV";
+  var today = new Date().toLocaleDateString("sv-SE");
+  var defaultProfile = {
+    height: 168,
+    weight: 62.5,
+    calorieTarget: 1400,
+    proteinTarget: 80,
+    fatTarget: 40,
+    carbsTarget: 150,
+    goal: "减脂",
+  };
+  var templates = [
+    { mealType: "午餐", name: "619 kcal 营养套餐", calories: 619, protein: 41.79, fat: 21.22, carbs: 78.09, note: "高蛋白午餐" },
+    { mealType: "晚餐", name: "414 kcal 轻食套餐", calories: 414, protein: 19.39, fat: 4.87, carbs: 76.98, note: "低脂、主食充足" },
+    { mealType: "加餐", name: "鸡蛋 1 个", calories: 70, protein: 6, fat: 5, carbs: 0.5, note: "简单补充蛋白质" },
+    { mealType: "加餐", name: "番茄洋葱土豆汤", calories: 30, protein: 1, fat: 0, carbs: 6, note: "约 220g，以汤为主" },
+  ];
+
+  function load(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) || fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function newClientId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "local-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+  }
+
+  function ensureMealIdentity(meal) {
+    if (!meal.clientId) meal.clientId = String(meal.id || newClientId());
+    if (!meal.id) meal.id = meal.clientId;
+    return meal;
+  }
+
+  var hadLocalMeals = localStorage.getItem(STORAGE) !== null;
+  var hadLocalProfile = localStorage.getItem(PROFILE) !== null;
+  var meals = load(STORAGE, []).map(ensureMealIdentity);
+  var profile = Object.assign({}, defaultProfile, load(PROFILE, defaultProfile));
+  var currentUser = null;
+  var loadedUserId = null;
+  var dbClient = window.supabase
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" },
+      })
+    : null;
+
+  function saveLocal() {
+    localStorage.setItem(STORAGE, JSON.stringify(meals));
+    localStorage.setItem(PROFILE, JSON.stringify(profile));
+  }
+
+  function n(value) {
+    return Math.round((Number(value) || 0) * 10) / 10;
+  }
+
+  function sum(list, key) {
+    return list.reduce(function (total, item) {
+      return total + (Number(item[key]) || 0);
+    }, 0);
+  }
+
+  function escapeHtml(value) {
+    var node = document.createElement("div");
+    node.textContent = String(value);
+    return node.innerHTML;
+  }
+
+  function showToast(message) {
+    var toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.hidden = false;
+    setTimeout(function () {
+      toast.hidden = true;
+    }, 2200);
+  }
+
+  function setSyncState(kind, text) {
+    var button = document.getElementById("auth-open");
+    button.classList.remove("synced", "syncing", "error");
+    if (kind) button.classList.add(kind);
+    document.getElementById("sync-label").textContent = text;
+  }
+
+  function openModal(id) {
+    document.getElementById(id).hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModals() {
+    document.querySelectorAll(".modal-backdrop").forEach(function (element) {
+      element.hidden = true;
+    });
+    document.body.style.overflow = "";
+  }
+
+  function totalsFor(date) {
+    var list = meals.filter(function (meal) {
+      return meal.eatenOn === date;
+    });
+    return {
+      list: list,
+      calories: sum(list, "calories"),
+      protein: sum(list, "protein"),
+      fat: sum(list, "fat"),
+      carbs: sum(list, "carbs"),
+    };
+  }
+
+  function metric(label, value, target, unit, color) {
+    var pct = Math.min(100, Math.round((value / target) * 100) || 0);
+    return '<div class="metric"><div class="metric-head"><span>' + label + "</span><b>" + n(value) + "<small>/" + target + unit + '</small></b></div><div class="track"><span style="width:' + pct + "%;background:" + color + '"></span></div></div>';
+  }
+
+  function advice(totals) {
+    var calLeft = Math.max(0, profile.calorieTarget - totals.calories);
+    var proteinLeft = Math.max(0, profile.proteinTarget - totals.protein);
+    if (!totals.list.length) {
+      return { title: "先记录今天的第一餐", body: "从常用套餐中选一个，或手动输入。记录后我会按你的目标给出下一餐建议。", tags: ["目标 " + profile.calorieTarget + " kcal", "蛋白质 " + profile.proteinTarget + "g"] };
+    }
+    if (calLeft < 120) {
+      return { title: "今天基本吃够了", body: proteinLeft > 10 ? "蛋白质还差约 " + n(proteinLeft) + "g，但热量空间较少。若饿，优先无糖高蛋白酸奶或少量虾仁。" : "总热量与蛋白质已经接近目标，晚间按饥饿感决定，不必为了凑数字继续吃。", tags: ["无需忌碳水", "留意真实饥饿感"] };
+    }
+    if (proteinLeft > 25) {
+      return { title: "下一餐优先补蛋白", body: "今天还可吃约 " + n(calLeft) + " kcal，蛋白质还差 " + n(proteinLeft) + "g。推荐鸡胸肉 150g 或虾 180g，配一大份蔬菜；饿的话正常加半碗饭。", tags: ["高蛋白", "蔬菜 300g", "主食按饥饿感"] };
+    }
+    return { title: "可以正常吃一份均衡餐", body: "还可吃约 " + n(calLeft) + " kcal，蛋白质缺口不大。414 kcal 套餐" + (proteinLeft > 8 ? "加 1 个鸡蛋" : "单独吃") + "会比较合适。", tags: ["不用去主食", "控制额外油脂"] };
+  }
+
+  function renderToday() {
+    var totals = totalsFor(today);
+    var left = Math.max(0, profile.calorieTarget - totals.calories);
+    var pct = Math.min(100, (totals.calories / profile.calorieTarget) * 100) || 0;
+    document.getElementById("total-calories").textContent = n(totals.calories);
+    document.getElementById("calories-left").textContent = n(left);
+    document.getElementById("cal-ring").style.setProperty("--progress", pct + "%");
+    document.getElementById("metrics").innerHTML = metric("蛋白质", totals.protein, profile.proteinTarget, "g", "#ff6b45") + metric("脂肪", totals.fat, profile.fatTarget, "g", "#f3b43f") + metric("碳水", totals.carbs, profile.carbsTarget, "g", "#557d67");
+    document.getElementById("profile-summary").textContent = "目标按 " + profile.height + " cm · " + profile.weight + " kg · " + profile.goal + " 设置，可在头像中调整";
+    var nextAdvice = advice(totals);
+    document.getElementById("advice-title").textContent = nextAdvice.title;
+    document.getElementById("advice-body").textContent = nextAdvice.body;
+    document.getElementById("advice-tags").innerHTML = nextAdvice.tags.map(function (tag) { return "<span>" + tag + "</span>"; }).join("");
+    var list = document.getElementById("meal-list");
+    if (!totals.list.length) {
+      list.className = "empty";
+      list.innerHTML = "<b>今天还没有记录</b><span>点‘添加’记下第一餐，或从套餐库一键加入。</span>";
+      return;
+    }
+    list.className = "meal-list";
+    list.innerHTML = totals.list.slice().reverse().map(function (meal) {
+      var cls = meal.mealType === "午餐" ? "lunch" : meal.mealType === "晚餐" ? "dinner" : meal.mealType === "加餐" ? "snack" : "";
+      var icon = meal.mealType === "早餐" ? "☀" : meal.mealType === "午餐" ? "◐" : meal.mealType === "晚餐" ? "☾" : "•";
+      return '<article class="meal-row"><div class="meal-icon ' + cls + '">' + icon + '</div><div class="meal-main"><span>' + escapeHtml(meal.mealType) + "</span><h3>" + escapeHtml(meal.name) + "</h3><p>蛋白质 " + n(meal.protein) + "g · 脂肪 " + n(meal.fat) + "g · 碳水 " + n(meal.carbs) + 'g</p></div><strong class="meal-cal">' + n(meal.calories) + '<small> kcal</small></strong><button class="delete" data-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除 ' + escapeHtml(meal.name) + '">×</button></article>';
+    }).join("");
+  }
+
+  function renderTemplates() {
+    document.getElementById("template-grid").innerHTML = templates.map(function (template, index) {
+      return `<article class="template-card"><div class="template-art"><span>${template.mealType}</span><b>${template.calories}</b><small>kcal</small></div><div class="template-info"><h2>${template.name}</h2><p>${template.note}</p><div class="macro-tags"><span>P ${template.protein}g</span><span>F ${template.fat}g</span><span>C ${template.carbs}g</span></div><button class="primary" data-template="${index}">＋ 记到今天</button></div></article>`;
+    }).join("");
+  }
+
+  function renderTrends() {
+    var days = [];
+    for (var offset = 6; offset >= 0; offset -= 1) {
+      var date = new Date();
+      date.setDate(date.getDate() - offset);
+      var key = date.toLocaleDateString("sv-SE");
+      var totals = totalsFor(key);
+      days.push({ key: key, cal: totals.calories, label: key === today ? "今天" : date.toLocaleDateString("zh-CN", { weekday: "short" }) });
+    }
+    var active = days.filter(function (day) { return day.cal > 0; });
+    document.getElementById("daily-average").textContent = active.length ? Math.round(sum(active, "cal") / active.length) : 0;
+    document.getElementById("bar-chart").innerHTML = days.map(function (day) {
+      return '<div class="bar-col"><span class="bar-value">' + (day.cal || "—") + '</span><div class="bar-well"><i style="height:' + Math.min(100, (day.cal / profile.calorieTarget) * 100) + '%"></i></div><small>' + day.label + "</small></div>";
+    }).join("");
+  }
+
+  function render() {
+    renderToday();
+    renderTemplates();
+    renderTrends();
+  }
+
+  function fillMeal(template) {
+    var form = document.getElementById("meal-form");
+    form.reset();
+    ["mealType", "name", "calories", "protein", "fat", "carbs", "note"].forEach(function (key) {
+      if (template && template[key] !== undefined) form.elements[key].value = template[key];
+    });
+    openModal("meal-modal");
+    setTimeout(function () { form.elements.name.focus(); }, 50);
+  }
+
+  function fillProfile() {
+    var form = document.getElementById("profile-form");
+    Object.keys(defaultProfile).forEach(function (key) {
+      if (form.elements[key]) form.elements[key].value = profile[key];
+    });
+    openModal("profile-modal");
+  }
+
+  function setTab(name) {
+    document.querySelectorAll(".tab-page").forEach(function (page) { page.classList.toggle("active", page.id === "page-" + name); });
+    document.querySelectorAll("[data-tab]").forEach(function (button) { button.classList.toggle("active", button.dataset.tab === name); });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function mealToRow(meal, userId) {
+    return {
+      id: typeof meal.id === "string" && /^[0-9a-f-]{36}$/i.test(meal.id) ? meal.id : undefined,
+      user_id: userId,
+      client_id: meal.clientId,
+      eaten_on: meal.eatenOn,
+      meal_type: meal.mealType,
+      name: meal.name,
+      calories: n(meal.calories),
+      protein: n(meal.protein),
+      fat: n(meal.fat),
+      carbs: n(meal.carbs),
+      note: meal.note || "",
+    };
+  }
+
+  function rowToMeal(row) {
+    return {
+      id: row.id,
+      clientId: row.client_id,
+      eatenOn: row.eaten_on,
+      mealType: row.meal_type,
+      name: row.name,
+      calories: Number(row.calories),
+      protein: Number(row.protein),
+      fat: Number(row.fat),
+      carbs: Number(row.carbs),
+      note: row.note || "",
+    };
+  }
+
+  function profileToRow(userId) {
+    return {
+      user_id: userId,
+      height: n(profile.height),
+      weight: n(profile.weight),
+      calorie_target: Math.round(profile.calorieTarget),
+      protein_target: n(profile.proteinTarget),
+      fat_target: n(profile.fatTarget),
+      carbs_target: n(profile.carbsTarget),
+      goal: profile.goal || "减脂",
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  function rowToProfile(row) {
+    return {
+      height: Number(row.height),
+      weight: Number(row.weight),
+      calorieTarget: Number(row.calorie_target),
+      proteinTarget: Number(row.protein_target),
+      fatTarget: Number(row.fat_target),
+      carbsTarget: Number(row.carbs_target),
+      goal: row.goal || "减脂",
+    };
+  }
+
+  function updateAuthUI() {
+    var signedIn = Boolean(currentUser);
+    document.getElementById("auth-signed-out").hidden = signedIn;
+    document.getElementById("auth-signed-in").hidden = !signedIn;
+    document.getElementById("account-email").textContent = signedIn ? currentUser.email || "已登录" : "";
+    document.getElementById("storage-note").textContent = signedIn ? "记录已安全同步到云端，也会在当前设备留下一份缓存。本工具不替代医生或注册营养师的医疗建议。" : "未登录时记录保存在当前浏览器；登录后会安全同步到云端。本工具不替代医生或注册营养师的医疗建议。";
+    if (signedIn) setSyncState("synced", currentUser.email || "已同步");
+    else setSyncState("", dbClient ? "本机保存 · 登录同步" : "本机保存");
+  }
+
+  async function loadRemoteState() {
+    if (!dbClient || !currentUser) return;
+    var userId = currentUser.id;
+    var migrationKey = MIGRATION_PREFIX + userId;
+    setSyncState("syncing", "正在同步…");
+    try {
+      if (!localStorage.getItem(migrationKey)) {
+        if (hadLocalProfile) {
+          var profileMigration = await dbClient.from("profiles").upsert(profileToRow(userId), { onConflict: "user_id" });
+          if (profileMigration.error) throw profileMigration.error;
+        }
+        if (hadLocalMeals && meals.length) {
+          var mealMigration = await dbClient.from("meals").upsert(meals.map(function (meal) { return mealToRow(meal, userId); }), { onConflict: "user_id,client_id" });
+          if (mealMigration.error) throw mealMigration.error;
+        }
+        localStorage.setItem(migrationKey, new Date().toISOString());
+      }
+      var profileResult = await dbClient.from("profiles").select("*").eq("user_id", userId).maybeSingle();
+      if (profileResult.error) throw profileResult.error;
+      if (!profileResult.data) {
+        var newProfileResult = await dbClient.from("profiles").upsert(profileToRow(userId), { onConflict: "user_id" }).select("*").single();
+        if (newProfileResult.error) throw newProfileResult.error;
+        profileResult.data = newProfileResult.data;
+      }
+      var mealsResult = await dbClient.from("meals").select("*").eq("user_id", userId).order("eaten_on", { ascending: true }).order("created_at", { ascending: true });
+      if (mealsResult.error) throw mealsResult.error;
+      profile = rowToProfile(profileResult.data);
+      meals = (mealsResult.data || []).map(rowToMeal);
+      saveLocal();
+      render();
+      setSyncState("synced", currentUser.email || "已同步");
+      document.getElementById("auth-status").textContent = "同步完成";
+    } catch (error) {
+      console.error(error);
+      setSyncState("error", "同步遇到问题");
+      document.getElementById("auth-status").textContent = "暂时无法同步，本机记录仍然保留。";
+      showToast("同步失败，记录已保存在本机");
+    }
+  }
+
+  async function persistMeal(meal) {
+    saveLocal();
+    render();
+    if (!dbClient || !currentUser) return;
+    setSyncState("syncing", "正在同步…");
+    var result = await dbClient.from("meals").upsert(mealToRow(meal, currentUser.id), { onConflict: "user_id,client_id" }).select("*").single();
+    if (result.error) {
+      console.error(result.error);
+      setSyncState("error", "同步遇到问题");
+      showToast("已保存在本机，稍后再同步");
+      return;
+    }
+    var syncedMeal = rowToMeal(result.data);
+    meals = meals.map(function (item) { return item.clientId === syncedMeal.clientId ? syncedMeal : item; });
+    saveLocal();
+    setSyncState("synced", currentUser.email || "已同步");
+  }
+
+  async function deleteMeal(clientId) {
+    meals = meals.filter(function (meal) { return meal.clientId !== clientId; });
+    saveLocal();
+    render();
+    if (!dbClient || !currentUser) return;
+    setSyncState("syncing", "正在同步…");
+    var result = await dbClient.from("meals").delete().eq("user_id", currentUser.id).eq("client_id", clientId);
+    if (result.error) {
+      console.error(result.error);
+      setSyncState("error", "同步遇到问题");
+      showToast("云端删除失败，请稍后重试");
+      return;
+    }
+    setSyncState("synced", currentUser.email || "已同步");
+  }
+
+  async function persistProfile() {
+    saveLocal();
+    render();
+    if (!dbClient || !currentUser) return;
+    setSyncState("syncing", "正在同步…");
+    var result = await dbClient.from("profiles").upsert(profileToRow(currentUser.id), { onConflict: "user_id" });
+    if (result.error) {
+      console.error(result.error);
+      setSyncState("error", "同步遇到问题");
+      showToast("目标已保存在本机，稍后再同步");
+      return;
+    }
+    setSyncState("synced", currentUser.email || "已同步");
+  }
+
+  async function handleSession(session) {
+    currentUser = session ? session.user : null;
+    updateAuthUI();
+    if (currentUser && loadedUserId !== currentUser.id) {
+      loadedUserId = currentUser.id;
+      await loadRemoteState();
+    }
+  }
+
+  document.getElementById("today-label").textContent = "今天 · " + new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
+
+  document.addEventListener("click", function (event) {
+    var add = event.target.closest("[data-add]");
+    if (add) return fillMeal();
+    var go = event.target.closest("[data-go]");
+    if (go) return setTab(go.dataset.go);
+    var tabButton = event.target.closest("[data-tab]");
+    if (tabButton) return setTab(tabButton.dataset.tab);
+    var templateButton = event.target.closest("[data-template]");
+    if (templateButton) {
+      var template = templates[Number(templateButton.dataset.template)];
+      var meal = ensureMealIdentity(Object.assign({ id: newClientId(), eatenOn: today }, template));
+      meals.push(meal);
+      persistMeal(meal);
+      setTab("today");
+      return showToast("已记入今天");
+    }
+    var deleteButton = event.target.closest("[data-delete]");
+    if (deleteButton) return deleteMeal(deleteButton.dataset.delete);
+    if (event.target.closest("[data-close]")) closeModals();
+  });
+
+  document.querySelectorAll(".modal-backdrop").forEach(function (modal) {
+    modal.addEventListener("mousedown", function (event) {
+      if (event.target === modal) closeModals();
+    });
+  });
+
+  document.getElementById("profile-open").addEventListener("click", fillProfile);
+  document.getElementById("profile-nav").addEventListener("click", fillProfile);
+  document.getElementById("auth-open").addEventListener("click", function () {
+    document.getElementById("auth-status").textContent = "";
+    openModal("auth-modal");
+  });
+
+  document.getElementById("meal-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var data = new FormData(event.target);
+    var meal = ensureMealIdentity({
+      id: newClientId(),
+      eatenOn: today,
+      mealType: data.get("mealType"),
+      name: data.get("name").trim(),
+      calories: Number(data.get("calories")) || 0,
+      protein: Number(data.get("protein")) || 0,
+      fat: Number(data.get("fat")) || 0,
+      carbs: Number(data.get("carbs")) || 0,
+      note: data.get("note") || "",
+    });
+    meals.push(meal);
+    persistMeal(meal);
+    closeModals();
+    showToast("已记入今天");
+  });
+
+  document.getElementById("profile-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var data = new FormData(event.target);
+    ["height", "weight", "calorieTarget", "proteinTarget", "fatTarget", "carbsTarget"].forEach(function (key) {
+      profile[key] = Number(data.get(key)) || defaultProfile[key];
+    });
+    persistProfile();
+    closeModals();
+    showToast("目标已保存");
+  });
+
+  function authMessage(error) {
+    var message = error && error.message ? error.message : "未知错误";
+    if (/invalid login credentials/i.test(message)) return "邮箱或密码不正确";
+    if (/email not confirmed/i.test(message)) return "请先完成注册确认，再回来登录";
+    if (/user already registered/i.test(message)) return "这个邮箱已经注册，请直接登录";
+    if (/password should be at least/i.test(message)) return "密码至少需要 6 位";
+    return message;
+  }
+
+  function setAuthBusy(form, busy, label) {
+    form.querySelectorAll("button").forEach(function (button) { button.disabled = busy; });
+    form.querySelector("button[type=submit]").textContent = busy ? label : "登录";
+  }
+
+  document.getElementById("auth-form").addEventListener("submit", async function (event) {
+    event.preventDefault();
+    if (!dbClient) return showToast("同步服务暂时不可用");
+    var form = event.target;
+    var data = new FormData(form);
+    var email = data.get("email").trim();
+    var password = data.get("password");
+    setAuthBusy(form, true, "正在登录…");
+    document.getElementById("auth-status").textContent = "";
+    var result = await dbClient.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+    setAuthBusy(form, false, "");
+    if (result.error) {
+      console.error(result.error);
+      document.getElementById("auth-status").textContent = "登录失败：" + authMessage(result.error);
+      return;
+    }
+    document.getElementById("auth-status").textContent = "登录成功，正在同步…";
+  });
+
+  document.getElementById("sign-up").addEventListener("click", async function () {
+    if (!dbClient) return showToast("同步服务暂时不可用");
+    var form = document.getElementById("auth-form");
+    if (!form.reportValidity()) return;
+    var data = new FormData(form);
+    var email = data.get("email").trim();
+    var password = data.get("password");
+    setAuthBusy(form, true, "正在注册…");
+    document.getElementById("auth-status").textContent = "";
+    var result = await dbClient.auth.signUp({ email: email, password: password });
+    setAuthBusy(form, false, "");
+    if (result.error) {
+      console.error(result.error);
+      document.getElementById("auth-status").textContent = "注册失败：" + authMessage(result.error);
+      return;
+    }
+    document.getElementById("auth-status").textContent = result.data.session
+      ? "注册并登录成功，正在同步…"
+      : "注册成功。请完成邮箱确认一次，之后都可直接用密码登录。";
+  });
+
+  document.getElementById("sign-out").addEventListener("click", async function () {
+    if (!dbClient) return;
+    await dbClient.auth.signOut();
+    currentUser = null;
+    loadedUserId = null;
+    meals = [];
+    profile = Object.assign({}, defaultProfile);
+    localStorage.removeItem(STORAGE);
+    localStorage.removeItem(PROFILE);
+    render();
+    updateAuthUI();
+    closeModals();
+    showToast("已安全退出");
+  });
+
+  document.getElementById("export-data").addEventListener("click", function () {
+    var blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile, meals: meals }, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = "轻食记备份-" + today + ".json";
+    link.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") closeModals();
+  });
+
+  render();
+  updateAuthUI();
+  if (dbClient) {
+    dbClient.auth.getSession().then(function (result) {
+      handleSession(result.data.session);
+    });
+    dbClient.auth.onAuthStateChange(function (event, session) {
+      setTimeout(function () { handleSession(session); }, 0);
+    });
+  }
+})();
