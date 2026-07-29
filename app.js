@@ -7,6 +7,7 @@
   var SUPABASE_URL = "https://rmdkdbhzmvgfdickybel.supabase.co";
   var SUPABASE_KEY = "sb_publishable_GyMTYjsSYxi1P2_itA3ulw_NKKr_3IV";
   var today = new Date().toLocaleDateString("sv-SE");
+  var selectedHistoryDate = today;
   var defaultProfile = {
     height: 168,
     weight: 62.5,
@@ -141,10 +142,11 @@
     return { title: "可以正常吃一份均衡餐", body: "还可吃约 " + n(calLeft) + " kcal，蛋白质缺口不大。414 kcal 套餐" + (proteinLeft > 8 ? "加 1 个鸡蛋" : "单独吃") + "会比较合适。", tags: ["不用去主食", "控制额外油脂"] };
   }
 
-  function mealRow(meal) {
+  function mealRow(meal, allowDelete) {
     var cls = meal.mealType === "午餐" ? "lunch" : meal.mealType === "晚餐" ? "dinner" : meal.mealType === "加餐" ? "snack" : "";
     var icon = meal.mealType === "早餐" ? "☀" : meal.mealType === "午餐" ? "◐" : meal.mealType === "晚餐" ? "☾" : "•";
-    return '<article class="meal-row"><div class="meal-icon ' + cls + '">' + icon + '</div><div class="meal-main"><span>' + escapeHtml(meal.mealType) + "</span><h3>" + escapeHtml(meal.name) + "</h3><p>蛋白质 " + n(meal.protein) + "g · 脂肪 " + n(meal.fat) + "g · 碳水 " + n(meal.carbs) + 'g</p></div><strong class="meal-cal">' + n(meal.calories) + '<small> kcal</small></strong><button class="delete" data-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除 ' + escapeHtml(meal.name) + '">×</button></article>';
+    var deleteControl = allowDelete ? '<button class="delete" data-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除 ' + escapeHtml(meal.name) + '">×</button>' : '<span class="history-lock" aria-label="历史记录只读">只读</span>';
+    return '<article class="meal-row"><div class="meal-icon ' + cls + '">' + icon + '</div><div class="meal-main"><span>' + escapeHtml(meal.mealType) + "</span><h3>" + escapeHtml(meal.name) + "</h3><p>蛋白质 " + n(meal.protein) + "g · 脂肪 " + n(meal.fat) + "g · 碳水 " + n(meal.carbs) + 'g</p></div><strong class="meal-cal">' + n(meal.calories) + '<small> kcal</small></strong>' + deleteControl + "</article>";
   }
 
   function renderToday() {
@@ -167,7 +169,7 @@
       return;
     }
     list.className = "meal-list";
-    list.innerHTML = totals.list.slice().reverse().map(mealRow).join("");
+    list.innerHTML = totals.list.slice().reverse().map(function (meal) { return mealRow(meal, true); }).join("");
   }
 
   function renderTemplates() {
@@ -188,36 +190,32 @@
     var active = days.filter(function (day) { return day.cal > 0; });
     document.getElementById("daily-average").textContent = active.length ? Math.round(sum(active, "cal") / active.length) : 0;
     document.getElementById("bar-chart").innerHTML = days.map(function (day) {
-      return '<div class="bar-col"><span class="bar-value">' + (day.cal || "—") + '</span><div class="bar-well"><i style="height:' + Math.min(100, (day.cal / profile.calorieTarget) * 100) + '%"></i></div><small>' + day.label + "</small></div>";
+      var selected = day.key === selectedHistoryDate;
+      return '<button type="button" class="bar-col' + (selected ? " selected" : "") + '" data-history-date="' + day.key + '" aria-pressed="' + selected + '" aria-label="查看 ' + day.key + ' 的饮食记录"><span class="bar-value">' + (day.cal || "—") + '</span><span class="bar-well"><i style="height:' + Math.min(100, (day.cal / profile.calorieTarget) * 100) + '%"></i></span><small>' + day.label + "</small></button>";
     }).join("");
   }
 
   function renderHistory() {
-    var history = meals.filter(function (meal) { return meal.eatenOn !== today; });
-    var grouped = history.reduce(function (result, meal) {
-      if (!result[meal.eatenOn]) result[meal.eatenOn] = [];
-      result[meal.eatenOn].push(meal);
-      return result;
-    }, {});
-    var dates = Object.keys(grouped).sort().reverse();
-    document.getElementById("history-count").textContent = history.length ? history.length + " 条记录" : "";
+    var mealOrder = { "早餐": 0, "午餐": 1, "加餐": 2, "晚餐": 3 };
+    var list = meals.filter(function (meal) { return meal.eatenOn === selectedHistoryDate; }).sort(function (a, b) {
+      return (mealOrder[a.mealType] || 0) - (mealOrder[b.mealType] || 0);
+    });
+    var dateLabel = new Date(selectedHistoryDate + "T12:00:00").toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
+    var picker = document.getElementById("history-date-picker");
+    picker.max = today;
+    picker.value = selectedHistoryDate;
+    document.getElementById("history-title").textContent = selectedHistoryDate === today ? "今天的饮食记录" : dateLabel;
+    document.getElementById("history-count").textContent = list.length ? list.length + " 条 · 只读" : "无记录";
     var container = document.getElementById("history-list");
-    if (!dates.length) {
-      container.innerHTML = '<div class="empty"><b>还没有历史记录</b><span>今天记录的餐食会在明天出现在这里。</span></div>';
+    if (!list.length) {
+      container.innerHTML = '<div class="empty"><b>这一天没有饮食记录</b><span>点击上方其他日期继续查看。</span></div>';
       return;
     }
-    container.innerHTML = dates.map(function (date) {
-      var mealOrder = { "早餐": 0, "午餐": 1, "加餐": 2, "晚餐": 3 };
-      var list = grouped[date].slice().sort(function (a, b) {
-        return (mealOrder[a.mealType] || 0) - (mealOrder[b.mealType] || 0);
-      });
-      var calories = sum(list, "calories");
-      var protein = sum(list, "protein");
-      var fat = sum(list, "fat");
-      var carbs = sum(list, "carbs");
-      var dateLabel = new Date(date + "T12:00:00").toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
-      return '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + '</span><b>' + list.length + ' 餐</b></div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(mealRow).join("") + "</div></article>";
-    }).join("");
+    var calories = sum(list, "calories");
+    var protein = sum(list, "protein");
+    var fat = sum(list, "fat");
+    var carbs = sum(list, "carbs");
+    container.innerHTML = '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + '</span><b>历史记录为只读</b></div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(function (meal) { return mealRow(meal, false); }).join("") + "</div></article>";
   }
 
   function render() {
@@ -419,6 +417,13 @@
   document.getElementById("today-label").textContent = "今天 · " + new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
 
   document.addEventListener("click", function (event) {
+    var historyDay = event.target.closest("[data-history-date]");
+    if (historyDay) {
+      selectedHistoryDate = historyDay.dataset.historyDate;
+      renderTrends();
+      renderHistory();
+      return;
+    }
     var add = event.target.closest("[data-add]");
     if (add) return fillMeal();
     var go = event.target.closest("[data-go]");
@@ -443,6 +448,13 @@
     modal.addEventListener("mousedown", function (event) {
       if (event.target === modal) closeModals();
     });
+  });
+
+  document.getElementById("history-date-picker").addEventListener("change", function (event) {
+    if (!event.target.value) return;
+    selectedHistoryDate = event.target.value;
+    renderTrends();
+    renderHistory();
   });
 
   document.getElementById("profile-open").addEventListener("click", fillProfile);
