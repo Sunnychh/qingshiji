@@ -9,6 +9,7 @@
   var SUPABASE_KEY = "sb_publishable_GyMTYjsSYxi1P2_itA3ulw_NKKr_3IV";
   var today = new Date().toLocaleDateString("sv-SE");
   var selectedHistoryDate = today;
+  var historyManageMode = false;
   var emptyProfile = {
     height: null,
     weight: null,
@@ -241,7 +242,11 @@
   function mealRow(meal, allowDelete) {
     var cls = meal.mealType === "午餐" ? "lunch" : meal.mealType === "晚餐" ? "dinner" : meal.mealType === "加餐" ? "snack" : "";
     var icon = meal.mealType === "早餐" ? "☀" : meal.mealType === "午餐" ? "◐" : meal.mealType === "晚餐" ? "☾" : "•";
-    var deleteControl = allowDelete ? '<button class="delete" data-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除 ' + escapeHtml(meal.name) + '">×</button>' : '<span class="history-lock" aria-label="历史记录只读">只读</span>';
+    var deleteControl = allowDelete === "history"
+      ? '<button class="delete history-delete" data-history-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除历史记录 ' + escapeHtml(meal.name) + '">×</button>'
+      : allowDelete
+        ? '<button class="delete" data-delete="' + escapeHtml(meal.clientId) + '" aria-label="删除 ' + escapeHtml(meal.name) + '">×</button>'
+        : '<span class="history-lock" aria-label="历史记录默认只读">已保存</span>';
     return '<article class="meal-row"><div class="meal-icon ' + cls + '">' + icon + '</div><div class="meal-main"><span>' + escapeHtml(meal.mealType) + "</span><h3>" + escapeHtml(meal.name) + "</h3><p>蛋白质 " + n(meal.protein) + "g · 脂肪 " + n(meal.fat) + "g · 碳水 " + n(meal.carbs) + 'g</p></div><strong class="meal-cal">' + n(meal.calories) + '<small> kcal</small></strong>' + deleteControl + "</article>";
   }
 
@@ -403,7 +408,7 @@
     picker.max = today;
     picker.value = selectedHistoryDate;
     document.getElementById("history-title").textContent = selectedHistoryDate === today ? "今天的饮食记录" : dateLabel;
-    document.getElementById("history-count").textContent = list.length ? list.length + " 条 · 只读" : "无记录";
+    document.getElementById("history-count").textContent = list.length ? list.length + " 条" : "无记录";
     var container = document.getElementById("history-list");
     if (!list.length) {
       container.innerHTML = '<div class="empty"><b>这一天没有饮食记录</b><span>点击上方其他日期继续查看。</span></div>';
@@ -413,7 +418,11 @@
     var protein = sum(list, "protein");
     var fat = sum(list, "fat");
     var carbs = sum(list, "carbs");
-    container.innerHTML = '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + '</span><b>历史记录为只读</b></div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(function (meal) { return mealRow(meal, false); }).join("") + "</div></article>";
+    var manageControl = selectedHistoryDate !== today
+      ? '<button class="history-manage" data-history-manage aria-pressed="' + historyManageMode + '">' + (historyManageMode ? "完成" : "管理记录") + '</button>'
+      : "";
+    var historyState = historyManageMode ? "管理模式 · 删除后无法撤销" : "历史记录已保存";
+    container.innerHTML = '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + "</span><b>" + historyState + '</b>' + manageControl + '</div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(function (meal) { return mealRow(meal, historyManageMode ? "history" : false); }).join("") + "</div></article>";
   }
 
   function render() {
@@ -693,6 +702,7 @@
     var historyDay = event.target.closest("[data-history-date]");
     if (historyDay) {
       selectedHistoryDate = historyDay.dataset.historyDate;
+      historyManageMode = false;
       renderTrends();
       renderHistory();
       return;
@@ -724,6 +734,18 @@
     if (templateDelete) return deleteTemplate(templateDelete.dataset.templateDelete);
     var quickAi = event.target.closest("[data-ai-prompt]");
     if (quickAi) return askAi(quickAi.dataset.aiPrompt);
+    var historyManage = event.target.closest("[data-history-manage]");
+    if (historyManage) {
+      historyManageMode = !historyManageMode;
+      return renderHistory();
+    }
+    var historyDelete = event.target.closest("[data-history-delete]");
+    if (historyDelete) {
+      var historyMeal = meals.find(function (meal) { return meal.clientId === historyDelete.dataset.historyDelete; });
+      if (!historyMeal) return;
+      if (!window.confirm("确定删除“" + historyMeal.name + "”这条历史记录吗？删除后无法撤销。")) return;
+      return deleteMeal(historyDelete.dataset.historyDelete);
+    }
     var deleteButton = event.target.closest("[data-delete]");
     if (deleteButton) return deleteMeal(deleteButton.dataset.delete);
     if (event.target.closest("[data-close]")) closeModals();
@@ -738,6 +760,7 @@
   document.getElementById("history-date-picker").addEventListener("change", function (event) {
     if (!event.target.value) return;
     selectedHistoryDate = event.target.value;
+    historyManageMode = false;
     renderTrends();
     renderHistory();
   });
