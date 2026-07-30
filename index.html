@@ -107,6 +107,7 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="meal-modal-title">
       <div class="modal-head"><div><span class="label">QUICK LOG</span><h2 id="meal-modal-title">记录这一餐</h2></div><button data-close aria-label="关闭">×</button></div>
       <form id="meal-form">
+        <label class="wide">从套餐库选择（可选）<select id="meal-template-select"><option value="">手动填写</option></select></label>
         <label>餐次<select name="mealType"><option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option></select></label>
         <label class="wide">搭配名称<input name="name" required autocomplete="off" placeholder="例如：鸡胸肉沙拉 + 半碗饭"></label>
         <label>热量 kcal<input name="calories" type="number" min="0" inputmode="decimal"></label>
@@ -182,6 +183,6 @@
   </div>
   <div class="toast" id="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
