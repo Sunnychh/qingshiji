@@ -3,6 +3,7 @@
 
   var STORAGE = "qingshiji-v1";
   var PROFILE = "qingshiji-profile-v1";
+  var TEMPLATE_STORAGE = "qingshiji-templates-v1";
   var MIGRATION_PREFIX = "qingshiji-supabase-migrated-";
   var SUPABASE_URL = "https://rmdkdbhzmvgfdickybel.supabase.co";
   var SUPABASE_KEY = "sb_publishable_GyMTYjsSYxi1P2_itA3ulw_NKKr_3IV";
@@ -17,7 +18,7 @@
     carbsTarget: null,
     goal: "",
   };
-  var templates = [
+  var builtInTemplates = [
     { mealType: "午餐", name: "绿皮叔照烧鸡肉健康碗", calories: 549, protein: 39.49, fat: 7.42, carbs: 81.89, note: "高蛋白主力午餐" },
     { mealType: "晚餐", name: "绿皮叔炙烤大虾健康碗", calories: 414, protein: 19.39, fat: 4.87, carbs: 76.98, note: "完整套餐，包含主食" },
     { mealType: "午餐", name: "619 kcal 营养套餐", calories: 619, protein: 41.79, fat: 21.22, carbs: 78.09, note: "历史记录中的高蛋白套餐" },
@@ -48,9 +49,19 @@
     return meal;
   }
 
+  function ensureTemplateIdentity(template) {
+    if (!template.clientId) template.clientId = String(template.id || newClientId());
+    if (!template.id) template.id = template.clientId;
+    template.custom = true;
+    return template;
+  }
+
   var hadLocalMeals = localStorage.getItem(STORAGE) !== null;
   var hadLocalProfile = localStorage.getItem(PROFILE) !== null;
   var meals = load(STORAGE, []).map(ensureMealIdentity);
+  var customTemplates = load(TEMPLATE_STORAGE, []).map(ensureTemplateIdentity);
+  var aiMessages = [];
+  var aiBusy = false;
   var profile = Object.assign({}, emptyProfile, load(PROFILE, emptyProfile));
   var currentUser = null;
   var loadedUserId = null;
@@ -64,6 +75,7 @@
   function saveLocal() {
     localStorage.setItem(STORAGE, JSON.stringify(meals));
     localStorage.setItem(PROFILE, JSON.stringify(profile));
+    localStorage.setItem(TEMPLATE_STORAGE, JSON.stringify(customTemplates));
   }
 
   function n(value) {
@@ -261,9 +273,106 @@
   }
 
   function renderTemplates() {
-    document.getElementById("template-grid").innerHTML = templates.map(function (template, index) {
-      return `<article class="template-card"><div class="template-art"><span>${template.mealType}</span><b>${template.calories}</b><small>kcal</small></div><div class="template-info"><h2>${template.name}</h2><p>${template.note}</p><div class="macro-tags"><span>P ${template.protein}g</span><span>F ${template.fat}g</span><span>C ${template.carbs}g</span></div><button class="primary" data-template="${index}">＋ 记到今天</button></div></article>`;
+    var allTemplates = builtInTemplates.map(function (template, index) {
+      return Object.assign({ key: "builtin-" + index, custom: false }, template);
+    }).concat(customTemplates.map(function (template) {
+      return Object.assign({ key: template.clientId, custom: true }, template);
+    }));
+    document.getElementById("template-count").textContent = allTemplates.length + " 个搭配";
+    document.getElementById("template-grid").innerHTML = allTemplates.map(function (template) {
+      var manage = template.custom ? '<button class="template-delete" data-template-delete="' + escapeHtml(template.clientId) + '" aria-label="删除套餐 ' + escapeHtml(template.name) + '">删除</button>' : '<span class="template-origin">内置参考</span>';
+      return '<article class="template-card"><div class="template-art"><span>' + escapeHtml(template.mealType) + '</span><b>' + n(template.calories) + '</b><small>kcal</small></div><div class="template-info"><div class="template-meta">' + manage + '</div><h2>' + escapeHtml(template.name) + '</h2><p>' + escapeHtml(template.note || "") + '</p><div class="macro-tags"><span>P ' + n(template.protein) + 'g</span><span>F ' + n(template.fat) + 'g</span><span>C ' + n(template.carbs) + 'g</span></div><button class="primary" data-template-key="' + escapeHtml(template.key) + '">＋ 记到今天</button></div></article>';
     }).join("");
+  }
+
+  function findTemplate(key) {
+    if (key.indexOf("builtin-") === 0) return builtInTemplates[Number(key.replace("builtin-", ""))];
+    return customTemplates.find(function (template) { return template.clientId === key; });
+  }
+
+  function renderAiMessages() {
+    var container = document.getElementById("ai-messages");
+    if (!aiMessages.length) {
+      container.innerHTML = '<div class="ai-welcome"><span>✦</span><h2>有什么想聊的？</h2><p>我可以结合你的目标和最近饮食，安排接下来的餐食、复盘趋势，或在吃多以后帮你平稳回到节奏。</p></div>';
+      return;
+    }
+    container.innerHTML = aiMessages.map(function (message) {
+      return '<article class="ai-message ' + message.role + '"><span>' + (message.role === "user" ? "我" : "轻食助手") + '</span><div>' + escapeHtml(message.content).replace(/\n/g, "<br>") + '</div></article>';
+    }).join("");
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function aiContext() {
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 13);
+    var cutoffKey = cutoff.toLocaleDateString("sv-SE");
+    var recent = meals.filter(function (meal) { return meal.eatenOn >= cutoffKey; });
+    var byDate = {};
+    recent.forEach(function (meal) {
+      if (!byDate[meal.eatenOn]) byDate[meal.eatenOn] = [];
+      byDate[meal.eatenOn].push(meal);
+    });
+    return {
+      today: today,
+      profile: profileReady() ? profile : null,
+      dailyHistory: Object.keys(byDate).sort().map(function (date) {
+        var list = byDate[date];
+        return {
+          date: date,
+          calories: n(sum(list, "calories")),
+          protein: n(sum(list, "protein")),
+          fat: n(sum(list, "fat")),
+          carbs: n(sum(list, "carbs")),
+          meals: list.map(function (meal) { return meal.mealType + "：" + meal.name; }),
+        };
+      }),
+    };
+  }
+
+  async function persistAiMessage(message) {
+    if (!dbClient || !currentUser) return;
+    var result = await dbClient.from("ai_messages").insert({ user_id: currentUser.id, role: message.role, content: message.content }).select("*").single();
+    if (!result.error && result.data) message.id = result.data.id;
+  }
+
+  async function askAi(text) {
+    if (aiBusy || !text.trim()) return;
+    if (!currentUser) {
+      document.getElementById("auth-status").textContent = "请先登录，再使用只读取你个人记录的 AI 助手。";
+      return openModal("auth-modal");
+    }
+    if (!profileReady()) return fillProfile();
+    var input = text.trim();
+    var userMessage = { role: "user", content: input };
+    aiMessages.push(userMessage);
+    persistAiMessage(userMessage);
+    renderAiMessages();
+    aiBusy = true;
+    document.getElementById("ai-send").disabled = true;
+    document.getElementById("ai-status").textContent = "正在结合你的记录分析…";
+    try {
+      var result = await dbClient.functions.invoke("nutrition-coach", {
+        body: {
+          message: input,
+          history: aiMessages.slice(-10).map(function (message) { return { role: message.role, content: message.content }; }),
+          context: aiContext(),
+        },
+      });
+      if (result.error) throw result.error;
+      var reply = result.data && result.data.reply ? result.data.reply : "这次没有生成有效回复，请稍后再试。";
+      var assistantMessage = { role: "assistant", content: reply };
+      aiMessages.push(assistantMessage);
+      await persistAiMessage(assistantMessage);
+      renderAiMessages();
+      document.getElementById("ai-status").textContent = "建议仅作日常参考，不替代医生或注册营养师。";
+    } catch (error) {
+      console.error(error);
+      document.getElementById("ai-status").textContent = "AI 服务尚未完成配置或暂时不可用，请稍后再试。";
+      showToast("AI 助手暂时无法回复");
+    } finally {
+      aiBusy = false;
+      document.getElementById("ai-send").disabled = false;
+    }
   }
 
   function renderTrends() {
@@ -312,6 +421,7 @@
     renderTemplates();
     renderTrends();
     renderHistory();
+    renderAiMessages();
   }
 
   function fillMeal(template) {
@@ -370,6 +480,35 @@
     };
   }
 
+  function templateToRow(template, userId) {
+    return {
+      id: typeof template.id === "string" && /^[0-9a-f-]{36}$/i.test(template.id) ? template.id : undefined,
+      user_id: userId,
+      client_id: template.clientId,
+      meal_type: template.mealType,
+      name: template.name,
+      calories: n(template.calories),
+      protein: n(template.protein),
+      fat: n(template.fat),
+      carbs: n(template.carbs),
+      note: template.note || "",
+    };
+  }
+
+  function rowToTemplate(row) {
+    return ensureTemplateIdentity({
+      id: row.id,
+      clientId: row.client_id,
+      mealType: row.meal_type,
+      name: row.name,
+      calories: Number(row.calories),
+      protein: Number(row.protein),
+      fat: Number(row.fat),
+      carbs: Number(row.carbs),
+      note: row.note || "",
+    });
+  }
+
   function profileToRow(userId) {
     return {
       user_id: userId,
@@ -401,6 +540,7 @@
     document.getElementById("auth-signed-out").hidden = signedIn;
     document.getElementById("auth-signed-in").hidden = !signedIn;
     document.getElementById("account-email").textContent = signedIn ? currentUser.email || "已登录" : "";
+    document.getElementById("ai-status").textContent = signedIn ? "建议仅作日常参考，不替代医生或注册营养师。" : "需要登录后使用。建议仅作日常参考。";
     document.getElementById("storage-note").textContent = signedIn ? "记录已安全同步到云端，也会在当前设备留下一份缓存。本工具不替代医生或注册营养师的医疗建议。" : "未登录时记录保存在当前浏览器；登录后会安全同步到云端。本工具不替代医生或注册营养师的医疗建议。";
     if (signedIn) setSyncState("synced", currentUser.email || "已同步");
     else setSyncState("", dbClient ? "本机保存 · 登录同步" : "本机保存");
@@ -427,8 +567,18 @@
       if (profileResult.error) throw profileResult.error;
       var mealsResult = await dbClient.from("meals").select("*").eq("user_id", userId).order("eaten_on", { ascending: true }).order("created_at", { ascending: true });
       if (mealsResult.error) throw mealsResult.error;
+      if (customTemplates.length) {
+        var templateMigration = await dbClient.from("meal_templates").upsert(customTemplates.map(function (template) { return templateToRow(template, userId); }), { onConflict: "user_id,client_id" });
+        if (templateMigration.error) throw templateMigration.error;
+      }
+      var templatesResult = await dbClient.from("meal_templates").select("*").eq("user_id", userId).order("created_at", { ascending: true });
+      if (templatesResult.error) throw templatesResult.error;
+      var messagesResult = await dbClient.from("ai_messages").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+      if (messagesResult.error) throw messagesResult.error;
       profile = profileResult.data ? rowToProfile(profileResult.data) : Object.assign({}, emptyProfile);
       meals = (mealsResult.data || []).map(rowToMeal);
+      customTemplates = (templatesResult.data || []).map(rowToTemplate);
+      aiMessages = (messagesResult.data || []).slice().reverse().map(function (row) { return { id: row.id, role: row.role, content: row.content }; });
       saveLocal();
       render();
       setSyncState("synced", currentUser.email || "已同步");
@@ -474,6 +624,36 @@
       return;
     }
     setSyncState("synced", currentUser.email || "已同步");
+  }
+
+  async function persistTemplate(template) {
+    saveLocal();
+    renderTemplates();
+    if (!dbClient || !currentUser) return;
+    setSyncState("syncing", "正在同步…");
+    var result = await dbClient.from("meal_templates").upsert(templateToRow(template, currentUser.id), { onConflict: "user_id,client_id" }).select("*").single();
+    if (result.error) {
+      console.error(result.error);
+      setSyncState("error", "同步遇到问题");
+      return showToast("套餐已保存在本机，稍后再同步");
+    }
+    var synced = rowToTemplate(result.data);
+    customTemplates = customTemplates.map(function (item) { return item.clientId === synced.clientId ? synced : item; });
+    saveLocal();
+    setSyncState("synced", currentUser.email || "已同步");
+  }
+
+  async function deleteTemplate(clientId) {
+    customTemplates = customTemplates.filter(function (template) { return template.clientId !== clientId; });
+    saveLocal();
+    renderTemplates();
+    if (!dbClient || !currentUser) return;
+    var result = await dbClient.from("meal_templates").delete().eq("user_id", currentUser.id).eq("client_id", clientId);
+    if (result.error) {
+      console.error(result.error);
+      return showToast("云端删除失败，请稍后再试");
+    }
+    showToast("套餐已删除");
   }
 
   async function persistProfile() {
@@ -526,15 +706,24 @@
     }
     var tabButton = event.target.closest("[data-tab]");
     if (tabButton) return setTab(tabButton.dataset.tab);
-    var templateButton = event.target.closest("[data-template]");
+    var templateButton = event.target.closest("[data-template-key]");
     if (templateButton) {
-      var template = templates[Number(templateButton.dataset.template)];
-      var meal = ensureMealIdentity(Object.assign({ id: newClientId(), eatenOn: today }, template));
+      var template = findTemplate(templateButton.dataset.templateKey);
+      if (!template) return;
+      var meal = ensureMealIdentity({
+        id: newClientId(), eatenOn: today, mealType: template.mealType, name: template.name,
+        calories: template.calories, protein: template.protein, fat: template.fat,
+        carbs: template.carbs, note: template.note || "",
+      });
       meals.push(meal);
       persistMeal(meal);
       setTab("today");
       return showToast("已记入今天");
     }
+    var templateDelete = event.target.closest("[data-template-delete]");
+    if (templateDelete) return deleteTemplate(templateDelete.dataset.templateDelete);
+    var quickAi = event.target.closest("[data-ai-prompt]");
+    if (quickAi) return askAi(quickAi.dataset.aiPrompt);
     var deleteButton = event.target.closest("[data-delete]");
     if (deleteButton) return deleteMeal(deleteButton.dataset.delete);
     if (event.target.closest("[data-close]")) closeModals();
@@ -554,7 +743,10 @@
   });
 
   document.getElementById("profile-open").addEventListener("click", fillProfile);
-  document.getElementById("profile-nav").addEventListener("click", fillProfile);
+  document.getElementById("template-add").addEventListener("click", function () {
+    document.getElementById("template-form").reset();
+    openModal("template-modal");
+  });
   document.getElementById("advice-plan-open").addEventListener("click", function () {
     if (!profileReady()) return fillProfile();
     renderRemainingPlan();
@@ -583,6 +775,33 @@
     persistMeal(meal);
     closeModals();
     showToast("已记入今天");
+  });
+
+  document.getElementById("template-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var data = new FormData(event.target);
+    var template = ensureTemplateIdentity({
+      id: newClientId(),
+      mealType: data.get("mealType"),
+      name: data.get("name").trim(),
+      calories: Number(data.get("calories")) || 0,
+      protein: Number(data.get("protein")) || 0,
+      fat: Number(data.get("fat")) || 0,
+      carbs: Number(data.get("carbs")) || 0,
+      note: data.get("note") || "",
+    });
+    customTemplates.push(template);
+    persistTemplate(template);
+    closeModals();
+    showToast("新套餐已保存");
+  });
+
+  document.getElementById("ai-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var input = document.getElementById("ai-input");
+    var value = input.value;
+    input.value = "";
+    askAi(value);
   });
 
   document.getElementById("profile-form").addEventListener("submit", function (event) {
@@ -660,10 +879,13 @@
     currentUser = null;
     loadedUserId = null;
     meals = [];
+    customTemplates = [];
+    aiMessages = [];
     profile = Object.assign({}, emptyProfile);
     profilePrompted = false;
     localStorage.removeItem(STORAGE);
     localStorage.removeItem(PROFILE);
+    localStorage.removeItem(TEMPLATE_STORAGE);
     render();
     updateAuthUI();
     closeModals();
@@ -671,7 +893,7 @@
   });
 
   document.getElementById("export-data").addEventListener("click", function () {
-    var blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile, meals: meals }, null, 2)], { type: "application/json" });
+    var blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile, meals: meals, templates: customTemplates, aiMessages: aiMessages }, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var link = document.createElement("a");
     link.href = url;
