@@ -10,6 +10,7 @@
   var today = new Date().toLocaleDateString("sv-SE");
   var selectedHistoryDate = today;
   var historyManageMode = false;
+  var mealEntryDate = today;
   var emptyProfile = {
     height: null,
     weight: null,
@@ -410,13 +411,13 @@
     document.getElementById("history-title").textContent = selectedHistoryDate === today ? "今天的饮食记录" : dateLabel;
     document.getElementById("history-count").textContent = list.length ? list.length + " 条" : "无记录";
     var manageButton = document.getElementById("history-manage");
-    manageButton.hidden = !list.length;
+    manageButton.hidden = false;
     manageButton.textContent = historyManageMode ? "完成管理" : "··· 管理";
     manageButton.setAttribute("aria-pressed", String(historyManageMode));
+    document.getElementById("history-add").hidden = !historyManageMode;
     var container = document.getElementById("history-list");
     if (!list.length) {
-      historyManageMode = false;
-      container.innerHTML = '<div class="empty"><b>这一天没有饮食记录</b><span>点击上方其他日期继续查看。</span></div>';
+      container.innerHTML = '<div class="empty"><b>这一天没有饮食记录</b><span>' + (historyManageMode ? '点击上方“＋ 补记”添加一餐。' : '可以查看其他日期，或进入管理后补记。') + '</span></div>';
       return;
     }
     var calories = sum(list, "calories");
@@ -435,12 +436,15 @@
     renderAiMessages();
   }
 
-  function fillMeal(template) {
+  function fillMeal(template, eatenOn) {
     var form = document.getElementById("meal-form");
+    mealEntryDate = eatenOn || today;
     form.reset();
     ["mealType", "name", "calories", "protein", "fat", "carbs", "note"].forEach(function (key) {
       if (template && template[key] !== undefined) form.elements[key].value = template[key];
     });
+    document.getElementById("meal-modal-title").textContent = mealEntryDate === today ? "记录这一餐" : "补记 " + mealEntryDate;
+    form.querySelector('button[type="submit"]').textContent = mealEntryDate === today ? "记到今天" : "补记到所选日期";
     openModal("meal-modal");
     setTimeout(function () { form.elements.name.focus(); }, 50);
   }
@@ -741,6 +745,8 @@
       historyManageMode = !historyManageMode;
       return renderHistory();
     }
+    var historyAdd = event.target.closest("[data-history-add]");
+    if (historyAdd) return fillMeal(null, selectedHistoryDate);
     var historyDelete = event.target.closest("[data-history-delete]");
     if (historyDelete) {
       var historyMeal = meals.find(function (meal) { return meal.clientId === historyDelete.dataset.historyDelete; });
@@ -787,7 +793,7 @@
     var data = new FormData(event.target);
     var meal = ensureMealIdentity({
       id: newClientId(),
-      eatenOn: today,
+      eatenOn: mealEntryDate,
       mealType: data.get("mealType"),
       name: data.get("name").trim(),
       calories: Number(data.get("calories")) || 0,
@@ -799,7 +805,7 @@
     meals.push(meal);
     persistMeal(meal);
     closeModals();
-    showToast("已记入今天");
+    showToast(mealEntryDate === today ? "已记入今天" : "已补记到 " + mealEntryDate);
   });
 
   document.getElementById("template-form").addEventListener("submit", function (event) {
