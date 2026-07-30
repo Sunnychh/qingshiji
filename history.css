@@ -79,6 +79,24 @@
   background: #fff3ee;
 }
 
+.history-add {
+  padding: 7px 10px;
+  border: 1px solid #9fb1a5;
+  border-radius: 9px;
+  background: #edf3ed;
+  color: var(--green);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.history-add:hover,
+.history-add:focus-visible {
+  border-color: var(--green);
+  background: #e3eee5;
+}
+
 .history-delete {
   opacity: .7;
 }
