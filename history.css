@@ -54,6 +54,29 @@
   font-weight: 700;
 }
 
+.history-manage {
+  justify-self: start;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dotted #9aa49e;
+  background: transparent;
+  color: #87928c;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.history-manage:hover,
+.history-manage:focus-visible {
+  color: var(--ink);
+  border-bottom-color: currentColor;
+}
+
+.history-delete {
+  opacity: .7;
+}
+
 .history-list {
   display: grid;
   gap: 18px;
