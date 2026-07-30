@@ -296,6 +296,22 @@
     return customTemplates.find(function (template) { return template.clientId === key; });
   }
 
+  function mealTemplateOptions() {
+    return builtInTemplates.map(function (template, index) {
+      return { key: "builtin-" + index, template: template };
+    }).concat(customTemplates.map(function (template) {
+      return { key: template.clientId, template: template };
+    }));
+  }
+
+  function applyTemplateToMealForm(template) {
+    if (!template) return;
+    var form = document.getElementById("meal-form");
+    ["mealType", "name", "calories", "protein", "fat", "carbs", "note"].forEach(function (key) {
+      if (template[key] !== undefined) form.elements[key].value = template[key];
+    });
+  }
+
   function renderAiMessages() {
     var container = document.getElementById("ai-messages");
     if (!aiMessages.length) {
@@ -440,9 +456,11 @@
     var form = document.getElementById("meal-form");
     mealEntryDate = eatenOn || today;
     form.reset();
-    ["mealType", "name", "calories", "protein", "fat", "carbs", "note"].forEach(function (key) {
-      if (template && template[key] !== undefined) form.elements[key].value = template[key];
-    });
+    var templateSelect = document.getElementById("meal-template-select");
+    templateSelect.innerHTML = '<option value="">手动填写</option>' + mealTemplateOptions().map(function (item) {
+      return '<option value="' + escapeHtml(item.key) + '">' + escapeHtml(item.template.mealType + " · " + item.template.name + " · " + n(item.template.calories) + " kcal") + "</option>";
+    }).join("");
+    applyTemplateToMealForm(template);
     document.getElementById("meal-modal-title").textContent = mealEntryDate === today ? "记录这一餐" : "补记 " + mealEntryDate;
     form.querySelector('button[type="submit"]').textContent = mealEntryDate === today ? "记到今天" : "补记到所选日期";
     openModal("meal-modal");
@@ -771,6 +789,11 @@
     historyManageMode = false;
     renderTrends();
     renderHistory();
+  });
+
+  document.getElementById("meal-template-select").addEventListener("change", function (event) {
+    if (!event.target.value) return;
+    applyTemplateToMealForm(findTemplate(event.target.value));
   });
 
   document.getElementById("profile-open").addEventListener("click", fillProfile);
