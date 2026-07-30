@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="auth.css?v=3">
   <link rel="stylesheet" href="history.css?v=1">
   <link rel="stylesheet" href="advice.css?v=1">
+  <link rel="stylesheet" href="ai.css?v=1">
 </head>
 <body>
   <header class="topbar">
@@ -54,8 +55,30 @@
     </section>
 
     <section class="tab-page" id="page-library">
-      <div class="hero-copy"><div><p class="eyebrow">MY COMBINATIONS</p><h1>常吃的搭配，一点就记。</h1><p>把之前对话里的套餐整理成了快捷模板。</p></div></div>
+      <div class="hero-copy"><div><p class="eyebrow">MY COMBINATIONS</p><h1>常吃的搭配，一点就记。</h1><p><span id="template-count"></span> · 自建套餐会保存到你的账号。</p></div><button class="primary" id="template-add">＋ 新建套餐</button></div>
       <div class="template-grid" id="template-grid"></div>
+    </section>
+
+    <section class="tab-page" id="page-ai">
+      <div class="hero-copy ai-hero"><div><p class="eyebrow">PERSONAL COACH</p><h1>说说现在的情况。</h1><p>它会结合你自己的目标和最近 14 天记录回答，不评价、不羞辱，也不鼓励补偿性节食或运动。</p></div></div>
+      <div class="ai-layout">
+        <aside class="ai-prompts card">
+          <span class="label">可以这样问</span>
+          <button data-ai-prompt="结合我今天已经吃的内容，安排接下来一顿或剩余几顿，给出具体食物和分量。">安排接下来怎么吃</button>
+          <button data-ai-prompt="分析我最近 7 天的饮食记录，指出做得好的地方、最值得调整的一件事和明天的行动建议。">分析最近一周</button>
+          <button data-ai-prompt="我觉得今天吃多了，有点内疚。请不要批评我，帮我客观复盘并告诉我下一步怎么做。">今天吃多了，聊聊</button>
+          <button data-ai-prompt="结合我的饮食和目标，给出今天可以做的温和运动建议。不要把运动当成惩罚，并提醒需要注意的安全情况。">给我运动建议</button>
+          <p>AI 只会读取当前登录账号的资料与饮食记录。</p>
+        </aside>
+        <section class="ai-chat card">
+          <div class="ai-messages" id="ai-messages" aria-live="polite"></div>
+          <form id="ai-form" class="ai-form">
+            <textarea id="ai-input" rows="2" required placeholder="例如：我晚饭想吃火锅，今天剩下怎么安排？"></textarea>
+            <button class="primary" id="ai-send" type="submit">发送</button>
+          </form>
+          <p class="ai-status" id="ai-status">需要登录后使用。建议仅作日常参考。</p>
+        </section>
+      </div>
     </section>
 
     <section class="tab-page" id="page-trends">
@@ -75,9 +98,9 @@
   <button class="mobile-fab" data-add aria-label="记录一餐">＋</button>
   <nav class="bottom-nav" aria-label="主导航">
     <button class="active" data-tab="today"><span>⌂</span>今天</button>
+    <button data-tab="ai"><span>✦</span>AI 助手</button>
     <button data-tab="library"><span>▦</span>套餐库</button>
     <button data-tab="trends"><span>↗</span>趋势</button>
-    <button id="profile-nav"><span>○</span>我的</button>
   </nav>
 
   <div class="modal-backdrop" id="meal-modal" hidden>
@@ -113,6 +136,21 @@
       </form>
     </div>
   </div>
+  <div class="modal-backdrop" id="template-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="template-modal-title">
+      <div class="modal-head"><div><span class="label">NEW COMBINATION</span><h2 id="template-modal-title">新建常吃套餐</h2></div><button data-close aria-label="关闭">×</button></div>
+      <form id="template-form">
+        <label>餐次<select name="mealType"><option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option></select></label>
+        <label class="wide">搭配名称<input name="name" required autocomplete="off" placeholder="例如：鸡胸肉 + 时蔬 + 半碗饭"></label>
+        <label>热量 kcal<input name="calories" type="number" min="0" required inputmode="decimal"></label>
+        <label>蛋白质 g<input name="protein" type="number" min="0" required step="0.1" inputmode="decimal"></label>
+        <label>脂肪 g<input name="fat" type="number" min="0" required step="0.1" inputmode="decimal"></label>
+        <label>碳水 g<input name="carbs" type="number" min="0" required step="0.1" inputmode="decimal"></label>
+        <label class="wide">备注（可选）<input name="note" autocomplete="off" placeholder="分量、品牌、适合什么时候吃"></label>
+        <button class="primary submit" type="submit">保存到套餐库</button>
+      </form>
+    </div>
+  </div>
   <div class="modal-backdrop" id="plan-modal" hidden>
     <div class="modal plan-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
       <div class="modal-head"><div><span class="label">REST OF TODAY</span><h2 id="plan-modal-title">今天余下怎么吃</h2></div><button data-close aria-label="关闭">×</button></div>
@@ -144,6 +182,6 @@
   </div>
   <div class="toast" id="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
