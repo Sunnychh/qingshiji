@@ -8,7 +8,7 @@
   <meta name="description" content="记录每日饮食与营养比例，根据目标获得下一餐建议。">
   <link rel="stylesheet" href="app.css?v=6">
   <link rel="stylesheet" href="auth.css?v=3">
-  <link rel="stylesheet" href="history.css?v=2">
+  <link rel="stylesheet" href="history.css?v=3">
   <link rel="stylesheet" href="advice.css?v=1">
   <link rel="stylesheet" href="ai.css?v=1">
 </head>
@@ -89,7 +89,7 @@
       </section>
       <div class="insight"><span>✦</span><div><b>给自己一点时间</b><p>连续记录 7 天后，这里会更准确地识别你的蛋白质缺口、周末波动和适合长期坚持的搭配。</p></div></div>
       <section class="section-block history-section">
-        <div class="section-head"><div><span class="label">SELECT A DAY</span><h2 id="history-title">今天的饮食记录</h2></div><div class="history-controls"><input type="date" id="history-date-picker" aria-label="选择要查看的日期"><span class="history-count" id="history-count"></span></div></div>
+        <div class="section-head"><div><span class="label">SELECT A DAY</span><h2 id="history-title">今天的饮食记录</h2></div><div class="history-controls"><input type="date" id="history-date-picker" aria-label="选择要查看的日期"><span class="history-count" id="history-count"></span><button type="button" class="history-manage" id="history-manage" data-history-manage aria-pressed="false" hidden>··· 管理</button></div></div>
         <div class="history-list" id="history-list"></div>
       </section>
     </section>
@@ -182,6 +182,6 @@
   </div>
   <div class="toast" id="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
