@@ -55,22 +55,28 @@
 }
 
 .history-manage {
-  justify-self: start;
-  margin-top: 3px;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px dotted #9aa49e;
-  background: transparent;
-  color: #87928c;
+  padding: 7px 10px;
+  border: 1px solid #d7dad2;
+  border-radius: 9px;
+  background: #f5f4ed;
+  color: #748078;
   font: inherit;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .history-manage:hover,
 .history-manage:focus-visible {
   color: var(--ink);
-  border-bottom-color: currentColor;
+  border-color: #aab2ac;
+  background: #fffdf7;
+}
+
+.history-manage[aria-pressed="true"] {
+  color: #8b4a39;
+  border-color: #d8b5aa;
+  background: #fff3ee;
 }
 
 .history-delete {
