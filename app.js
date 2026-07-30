@@ -409,8 +409,13 @@
     picker.value = selectedHistoryDate;
     document.getElementById("history-title").textContent = selectedHistoryDate === today ? "今天的饮食记录" : dateLabel;
     document.getElementById("history-count").textContent = list.length ? list.length + " 条" : "无记录";
+    var manageButton = document.getElementById("history-manage");
+    manageButton.hidden = !list.length;
+    manageButton.textContent = historyManageMode ? "完成管理" : "··· 管理";
+    manageButton.setAttribute("aria-pressed", String(historyManageMode));
     var container = document.getElementById("history-list");
     if (!list.length) {
+      historyManageMode = false;
       container.innerHTML = '<div class="empty"><b>这一天没有饮食记录</b><span>点击上方其他日期继续查看。</span></div>';
       return;
     }
@@ -418,9 +423,8 @@
     var protein = sum(list, "protein");
     var fat = sum(list, "fat");
     var carbs = sum(list, "carbs");
-    var manageControl = '<button class="history-manage" data-history-manage aria-pressed="' + historyManageMode + '">' + (historyManageMode ? "完成" : "管理记录") + '</button>';
     var historyState = historyManageMode ? "管理模式 · 删除后无法撤销" : "历史记录已保存";
-    container.innerHTML = '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + "</span><b>" + historyState + '</b>' + manageControl + '</div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(function (meal) { return mealRow(meal, historyManageMode ? "history" : false); }).join("") + "</div></article>";
+    container.innerHTML = '<article class="history-day"><div class="history-head"><div><span class="history-date">' + escapeHtml(dateLabel) + "</span><b>" + historyState + '</b></div><div class="history-summary"><strong>' + n(calories) + ' kcal</strong><span>蛋白质 ' + n(protein) + 'g</span><span>脂肪 ' + n(fat) + 'g</span><span>碳水 ' + n(carbs) + 'g</span></div></div><div class="meal-list history-meals">' + list.map(function (meal) { return mealRow(meal, historyManageMode ? "history" : false); }).join("") + "</div></article>";
   }
 
   function render() {
